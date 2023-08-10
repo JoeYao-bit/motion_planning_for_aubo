@@ -328,6 +328,9 @@ namespace freeNav {
     using Path = std::vector<Pointi<N> >;
 
     template <Dimension N>
+    using Pathd = std::vector<Pointd<N> >;
+
+    template <Dimension N>
     using Paths = std::vector<Path<N> >;
 
     template <Dimension N>
@@ -368,8 +371,8 @@ namespace freeNav {
         return val;
     }
 
-    template<Dimension N>
-    std::ostream& operator<<(std::ostream& os, const Path<N>& path) {
+    template<Dimension N, typename Path>
+    std::ostream& operator<<(std::ostream& os, const Path& path) {
         if(path.empty()) return os;
         for(int i=0; i<path.size()-1; i++) {
             os << path[i] << "->";

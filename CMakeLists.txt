@@ -30,15 +30,16 @@ find_package(Glog REQUIRED)
 
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
-
+find_package(nav_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 
 set(dependencies
     rclcpp
     #rclcpp_components
     #sensor_msgs
-    #geometry_msgs
-    #nav_msgs
+    geometry_msgs
+    nav_msgs
     std_msgs
 )
 
@@ -52,7 +53,7 @@ include_directories(include
 
 # aux_source_directory(src          path_smooth_src)
 
-add_library(teb_lib SHARED 
+set(teb_lib  
             src/canvas.cpp
             src/optimal_planner.cpp
             src/path_smooth.cpp
@@ -94,7 +95,9 @@ set(G2O_LIBS
         cxsparse)
 
 add_executable(test_path_smooth src/test_path_smooth.cpp)
-target_link_libraries(test_path_smooth teb_lib ${EXTERNAL_LIBS} ${G2O_LIBS})
+target_link_libraries(test_path_smooth ${EXTERNAL_LIBS} ${G2O_LIBS})
+ament_target_dependencies(test_path_smooth geometry_msgs nav_msgs rclcpp std_msgs)
+target_sources(test_path_smooth PUBLIC ${teb_lib})
 
 add_executable(publisher src/publisher_node.cpp)
 ament_target_dependencies(publisher rclcpp std_msgs)

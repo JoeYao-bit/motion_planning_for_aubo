@@ -97,9 +97,9 @@ namespace freeNav {
 
         //void drawWaveTreeNode(const freeNav::WaveTreeNodePtr<2> &wave_tree_node_ptr);
 
-        void drawPaths(const freeNav::Paths<2> &paths);
+        void drawPaths(const freeNav::Pathis<2> &paths);
 
-        void drawPath(const freeNav::Path<2> &path, bool center_offset = false,
+        void drawPath(const freeNav::Path<int, 2> &path, bool center_offset = false,
                       const cv::Scalar &color = cv::Scalar::all(0));
 
         void draw_ENLSVG_Extent(const std::vector<int> &extents, freeNav::DimensionLength dimen[2], double scale = .7);

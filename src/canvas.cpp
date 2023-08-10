@@ -270,7 +270,7 @@ namespace freeNav {
         }
     }
 
-    void Canvas::drawPaths(const freeNav::Paths<2> &paths) {
+    void Canvas::drawPaths(const freeNav::Pathis<2> &paths) {
         int color_count = 0;
         for (const auto &path : paths) {
             drawPath(path, true, COLOR_TABLE[color_count % 30]);
@@ -278,7 +278,7 @@ namespace freeNav {
         }
     }
 
-    void Canvas::drawPath(const freeNav::Path<2> &path, bool center_offset, const cv::Scalar &color) {
+    void Canvas::drawPath(const freeNav::Path<int, 2> &path, bool center_offset, const cv::Scalar &color) {
         if (path.size() <= 1) return;
         for (int i = 0; i < path.size() - 1; i++) {
             //drawGridLine(path[i][0], path[i][1], path[i + 1][0], path[i + 1][1], 1, center_offset, color);

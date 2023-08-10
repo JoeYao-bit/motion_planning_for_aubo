@@ -32,6 +32,7 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(tf2_msgs REQUIRED)
 
 
 set(dependencies
@@ -41,6 +42,7 @@ set(dependencies
     geometry_msgs
     nav_msgs
     std_msgs
+    tf2_msgs
 )
 
 include_directories(include
@@ -96,7 +98,7 @@ set(G2O_LIBS
 
 add_executable(test_path_smooth src/test_path_smooth.cpp)
 target_link_libraries(test_path_smooth ${EXTERNAL_LIBS} ${G2O_LIBS})
-ament_target_dependencies(test_path_smooth geometry_msgs nav_msgs rclcpp std_msgs)
+ament_target_dependencies(test_path_smooth geometry_msgs nav_msgs rclcpp std_msgs tf2_msgs)
 target_sources(test_path_smooth PUBLIC ${teb_lib})
 
 add_executable(publisher src/publisher_node.cpp)

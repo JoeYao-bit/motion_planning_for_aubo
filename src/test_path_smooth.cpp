@@ -11,11 +11,14 @@
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "tf2/LinearMath/Quaternion.h"
+#include "tf2_ros/transform_broadcaster.h"
 #include "rclcpp/time.hpp"
+
 
 using namespace freeNav::RimJump;
 using namespace freeNav;
-Path<2> path;
+Path<int, 2> path;
 Pointds<2> pathd;
 Pointi<2> click_point;
 std::vector<Eigen::Vector3d> smoothed_path;
@@ -62,7 +65,7 @@ class GlobalPathPublisher : public rclcpp::Node
       }
 
       RCLCPP_INFO(this->get_logger(), "Publis global path with %i way points", path.size());
-      //std::cout << path << std::endl;
+      std::cout << path << std::endl;
       publisher_->publish(message);
 
     }
@@ -92,6 +95,7 @@ int main(int argc, char * argv[]) {
             path.clear();
             pathd.clear();
             result_traj.clear();
+            printf("clear all paths");
         }
     };
 

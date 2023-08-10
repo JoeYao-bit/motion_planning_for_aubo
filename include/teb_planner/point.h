@@ -324,17 +324,17 @@ namespace freeNav {
 
     typedef float PathLen; // 4 zijie, double 8 zijie
 
-    template <Dimension N>
-    using Path = std::vector<Pointi<N> >;
+    template <typename T, Dimension N>
+    using Path = std::vector<Point<T, N> >;
 
     template <Dimension N>
-    using Pathd = std::vector<Pointd<N> >;
+    using Pathd = Path<double, N>;
 
     template <Dimension N>
-    using Paths = std::vector<Path<N> >;
+    using Pathis = std::vector<Path<int, N> >;
 
     template <Dimension N>
-    PathLen calculatePathLength(const Path<N>& path) {
+    PathLen calculatePathLength(const Pathd<N>& path) {
         if(path.size() <= 1) return 0;
         PathLen retv = 0;
         for(int i=0; i<path.size()-1; i++) {
@@ -371,8 +371,8 @@ namespace freeNav {
         return val;
     }
 
-    template<Dimension N, typename Path>
-    std::ostream& operator<<(std::ostream& os, const Path& path) {
+    template<typename T, Dimension N>
+    std::ostream& operator<<(std::ostream& os, const Path<T, N>& path) {
         if(path.empty()) return os;
         for(int i=0; i<path.size()-1; i++) {
             os << path[i] << "->";

@@ -14,7 +14,6 @@
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2_ros/transform_broadcaster.h"
 #include "rclcpp/time.hpp"
-#include "tf2_ros/static_transform_broadcaster.h"
 
 using namespace freeNav::RimJump;
 using namespace freeNav;
@@ -38,51 +37,13 @@ TebOptimalPlanner teb_planner;
 
 double current_time = 0;
 
-
-class StaticFramePublisher : public rclcpp::Node
-{
-public:
-  explicit StaticFramePublisher()
-  : Node("static_turtle_tf2_broadcaster")
-  {
-    tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
-
-    // Publish static transforms once at startup
-    this->make_transforms();
-  }
-
-private:
-  void make_transforms()
-  {
-    geometry_msgs::msg::TransformStamped t;
-
-    t.header.stamp = this->get_clock()->now();
-    t.header.frame_id = "world";
-    t.child_frame_id = "map";
-
-    t.transform.translation.x = 0;
-    t.transform.translation.y = 0;
-    t.transform.translation.z = 0;
-    tf2::Quaternion q;
-    q.setRPY(0, 0, 0);
-    t.transform.rotation.x = q.x();
-    t.transform.rotation.y = q.y();
-    t.transform.rotation.z = q.z();
-    t.transform.rotation.w = q.w();
-
-    tf_static_broadcaster_->sendTransform(t);
-  }
-
-  std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_broadcaster_;
-};
-
 class GlobalPathPublisher : public rclcpp::Node
 {
   public:
     GlobalPathPublisher()
     : Node("GlobalPathPublisher")
     {
-      publisher_ = this->create_publisher<nav_msgs::msg::Path>("global_path", 10);
+      publisher_ = this->create_publisher<nav_msgs::msg::Path>("/global_path", 10);
     }
 
  
@@ -113,13 +74,12 @@ class GlobalPathPublisher : public rclcpp::Node
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr publisher_;
 
 };
+// 指定编译以及线程数量
+// colcon build --packages-select teb_planner --parallel-workers 4
 
 int main(int argc, char * argv[]) {
 
     rclcpp::init(argc, argv);
-
-    // publish tf from world to map 
-    StaticFramePublisher static_pub;
 
     /* set robot shape */
     Point2dContainer robot_shape;
@@ -188,5 +148,6 @@ int main(int argc, char * argv[]) {
             }
         }
     }
+    rclcpp::shutdown();
     return 0;
 }

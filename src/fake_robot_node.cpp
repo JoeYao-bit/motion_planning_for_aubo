@@ -1,0 +1,202 @@
+// establish a fake robot to receive command
+#include <memory>
+
+#include "rclcpp/rclcpp.hpp"
+#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
+#include "geometry_msgs/msg/twist.hpp"
+#include "tf2/LinearMath/Quaternion.h"
+#include "tf2/utils.h"
+#include "nav_msgs/msg/odometry.hpp"
+#include "tf2/utils.h"
+#include "tf2_ros/transform_broadcaster.h"
+#include "tf2_ros/static_transform_broadcaster.h"
+
+geometry_msgs::msg::PoseWithCovariance pose_with_covariance;
+geometry_msgs::msg::Twist cmd_vel;
+
+using std::placeholders::_1;
+
+double control_frequency = 1;//0.1;
+
+class StaticFramePublisher : public rclcpp::Node
+{
+public:
+  explicit StaticFramePublisher()
+  : Node("static_turtle_tf2_broadcaster")
+  {
+    tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
+
+    // Publish static transforms once at startup
+    this->make_transforms();
+  }
+
+private:
+  void make_transforms()
+  {
+    geometry_msgs::msg::TransformStamped t;
+
+    t.header.stamp = this->get_clock()->now();
+    t.header.frame_id = "map";
+    t.child_frame_id = "odom";
+
+    t.transform.translation.x = 0;
+    t.transform.translation.y = 0;
+    t.transform.translation.z = 0;
+    tf2::Quaternion q;
+    q.setRPY(0, 0, 0);
+    t.transform.rotation.x = q.x();
+    t.transform.rotation.y = q.y();
+    t.transform.rotation.z = q.z();
+    t.transform.rotation.w = q.w();
+
+    tf_static_broadcaster_->sendTransform(t);
+  }
+
+  std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_broadcaster_;
+};
+
+class InitialPoseSubscriber : public rclcpp::Node
+{
+public:
+  InitialPoseSubscriber()
+  : Node("initial_pose_subscriber")
+  {
+    subscription_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+      "/initialpose", 10, std::bind(&InitialPoseSubscriber::topic_callback, this, _1));
+  }
+
+private:
+
+  void topic_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) const
+  {
+    geometry_msgs::msg::Point position = msg->pose.pose.position;
+    double yaw = tf2::getYaw(msg->pose.pose.orientation);
+    RCLCPP_INFO(this->get_logger(), "Receive initial pose(x, y, yaw): %f, %f, %f", position.x, position.y, yaw);
+    pose_with_covariance = msg->pose;
+  }
+
+  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr subscription_;
+
+};
+
+class CmdVelSubscriber : public rclcpp::Node
+{
+public:
+  CmdVelSubscriber()
+  : Node("cmd_vel_subscriber")
+  {
+    subscription_ = this->create_subscription<geometry_msgs::msg::Twist>(
+      "/cmd_vel", 10, std::bind(&CmdVelSubscriber::topic_callback, this, _1));
+  }
+
+private:
+
+  void topic_callback(const geometry_msgs::msg::Twist::SharedPtr msg) const
+  {
+    geometry_msgs::msg::Vector3 v = msg->linear;
+    geometry_msgs::msg::Vector3 w = msg->linear;
+    RCLCPP_INFO(this->get_logger(), "Receive cmd vel(vx, w): %f, %f, %f", v.x, v.y, w.z);
+    cmd_vel = *msg;
+  }
+
+  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr subscription_;
+};
+
+class OdomPublisher : public rclcpp::Node
+{
+  public:
+    OdomPublisher()
+    : Node("odom_publisher")
+    {
+      publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
+      odom_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+    }
+
+    void publish_odometry()
+    {
+      const auto& current_pose = pose_with_covariance.pose;
+
+      double x = current_pose.position.x + control_frequency*cmd_vel.linear.x * cos(tf2::getYaw(current_pose.orientation));
+      double y = current_pose.position.y;// + control_frequency*cmd_vel.linear.x * sin(tf::getYaw(current_pose.orientation));
+      double yaw = tf2::getYaw(current_pose.orientation);// + control_frequency*cmd_vel.angular.z;
+
+      double vx = cmd_vel.linear.x;
+      double vy = 0.0;
+      double vth = cmd_vel.angular.z;
+
+      rclcpp::Time current_time = this->get_clock()->now();
+
+      //since all odometry is 6DOF we'll need a quaternion created from yaw
+      tf2::Quaternion quat; quat.setRPY(0, 0, yaw);
+      geometry_msgs::msg::Quaternion odom_quat = tf2::toMsg(quat);//tf2_ros::createQuaternionMsgFromRollPitchYaw(1.581071,0,yaw);
+
+      //first, we'll publish the transform over tf
+      geometry_msgs::msg::TransformStamped odom_trans;
+      odom_trans.header.stamp = current_time;
+      odom_trans.header.frame_id = "/odom";
+      odom_trans.child_frame_id = "/base_link";
+
+      odom_trans.transform.translation.x = x;
+      odom_trans.transform.translation.y = y;
+      odom_trans.transform.translation.z = 0.0;
+      odom_trans.transform.rotation = odom_quat;
+
+      //send the transform
+      odom_broadcaster_->sendTransform(odom_trans);
+
+      //next, we'll publish the odometry message over ROS
+      nav_msgs::msg::Odometry odom;
+      odom.header.stamp = current_time;
+      odom.header.frame_id = "/odom";
+
+      //set the position
+      odom.pose.pose.position.x = x;
+      odom.pose.pose.position.y = y;
+      odom.pose.pose.position.z = 0.0;
+      odom.pose.pose.orientation = odom_quat;//odom_quat;
+
+      //set the velocity
+      odom.child_frame_id = "/base_link";
+      odom.twist.twist.linear.x = vx;
+      odom.twist.twist.linear.y = vy;
+      odom.twist.twist.angular.z = vth;
+
+      //publish the message
+      publisher_->publish(odom);
+    }
+
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr publisher_;
+
+    std::shared_ptr<tf2_ros::TransformBroadcaster> odom_broadcaster_;
+
+
+};
+
+int main(int argc, char * argv[]) {
+    rclcpp::init(argc, argv);
+
+    // publish tf from world to map 
+    StaticFramePublisher static_pub;
+
+    auto init_pose_sub_ptr = std::make_shared<InitialPoseSubscriber>(); 
+
+    auto cmd_vel_sub_ptr   = std::make_shared<CmdVelSubscriber>(); 
+
+    auto odom_pub_ptr   = std::make_shared<OdomPublisher>(); 
+
+
+    rclcpp::WallRate loop_rate(1/control_frequency);
+
+    while (rclcpp::ok())
+    {
+
+        RCLCPP_INFO(rclcpp::get_logger("newNode"), "-------timer callback!-----------");
+        odom_pub_ptr->publish_odometry();
+        rclcpp::spin_some(init_pose_sub_ptr);
+        rclcpp::spin_some(cmd_vel_sub_ptr);
+        loop_rate.sleep();
+    }
+
+
+    return 0;
+}

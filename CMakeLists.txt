@@ -103,6 +103,11 @@ target_link_libraries(test_path_smooth ${EXTERNAL_LIBS} ${G2O_LIBS})
 ament_target_dependencies(test_path_smooth geometry_msgs nav_msgs rclcpp std_msgs tf2_msgs tf2_ros)
 target_sources(test_path_smooth PUBLIC ${teb_lib})
 
+add_executable(fake_robot_node src/fake_robot_node.cpp)
+target_link_libraries(fake_robot_node ${EXTERNAL_LIBS} ${G2O_LIBS})
+ament_target_dependencies(fake_robot_node geometry_msgs nav_msgs rclcpp std_msgs tf2_msgs tf2_ros)
+target_sources(fake_robot_node PUBLIC ${teb_lib})
+
 add_executable(publisher src/publisher_node.cpp)
 ament_target_dependencies(publisher rclcpp std_msgs)
 
@@ -113,6 +118,7 @@ install(TARGETS
     publisher 
     subscriber
     test_path_smooth
+    fake_robot_node
     DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -1,22 +1,11 @@
 // establish a fake robot to receive command
-#include <memory>
+#include "common.h"
 
-#include "rclcpp/rclcpp.hpp"
-#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
-#include "geometry_msgs/msg/twist.hpp"
-#include "tf2/LinearMath/Quaternion.h"
-#include "tf2/utils.h"
-#include "nav_msgs/msg/odometry.hpp"
-#include "tf2/utils.h"
-#include "tf2_ros/transform_broadcaster.h"
-#include "tf2_ros/static_transform_broadcaster.h"
-
-geometry_msgs::msg::PoseWithCovariance pose_with_covariance;
-geometry_msgs::msg::Twist cmd_vel;
 
 using std::placeholders::_1;
 
-double control_frequency = 1;//0.1;
+geometry_msgs::msg::Twist cmd_vel;
+geometry_msgs::msg::PoseWithCovariance pose_with_covariance;
 
 class StaticFramePublisher : public rclcpp::Node
 {
@@ -55,19 +44,23 @@ private:
   std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_broadcaster_;
 };
 
-class InitialPoseSubscriber : public rclcpp::Node
+class FakeRobotSubscriber : public rclcpp::Node
 {
 public:
-  InitialPoseSubscriber()
-  : Node("initial_pose_subscriber")
+  FakeRobotSubscriber()
+  : Node("fake_robot_subscriber")
   {
-    subscription_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
-      "/initialpose", 10, std::bind(&InitialPoseSubscriber::topic_callback, this, _1));
+
+    initial_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+       "/initialpose", 10, std::bind(&FakeRobotSubscriber::initial_pose_topic_callback, this, _1));
+
+    cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
+      "/cmd_vel", 10, std::bind(&FakeRobotSubscriber::cmd_vel_topic_callback, this, _1));
   }
 
 private:
 
-  void topic_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) const
+  void initial_pose_topic_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) const
   {
     geometry_msgs::msg::Point position = msg->pose.pose.position;
     double yaw = tf2::getYaw(msg->pose.pose.orientation);
@@ -75,31 +68,19 @@ private:
     pose_with_covariance = msg->pose;
   }
 
-  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr subscription_;
-
-};
-
-class CmdVelSubscriber : public rclcpp::Node
-{
-public:
-  CmdVelSubscriber()
-  : Node("cmd_vel_subscriber")
+  void cmd_vel_topic_callback(const geometry_msgs::msg::Twist::SharedPtr msg) const
   {
-    subscription_ = this->create_subscription<geometry_msgs::msg::Twist>(
-      "/cmd_vel", 10, std::bind(&CmdVelSubscriber::topic_callback, this, _1));
-  }
-
-private:
-
-  void topic_callback(const geometry_msgs::msg::Twist::SharedPtr msg) const
-  {
+    RCLCPP_INFO(this->get_logger(), "Receive cmd start");
     geometry_msgs::msg::Vector3 v = msg->linear;
     geometry_msgs::msg::Vector3 w = msg->linear;
     RCLCPP_INFO(this->get_logger(), "Receive cmd vel(vx, w): %f, %f, %f", v.x, v.y, w.z);
     cmd_vel = *msg;
   }
 
-  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr subscription_;
+  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+
+  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr initial_pose_sub_;
+
 };
 
 class OdomPublisher : public rclcpp::Node
@@ -118,7 +99,7 @@ class OdomPublisher : public rclcpp::Node
 
       double x = current_pose.position.x + control_frequency*cmd_vel.linear.x * cos(tf2::getYaw(current_pose.orientation));
       double y = current_pose.position.y;// + control_frequency*cmd_vel.linear.x * sin(tf::getYaw(current_pose.orientation));
-      double yaw = tf2::getYaw(current_pose.orientation);// + control_frequency*cmd_vel.angular.z;
+      double yaw = tf2::getYaw(current_pose.orientation) + control_frequency*cmd_vel.angular.z;
 
       double vx = cmd_vel.linear.x;
       double vy = 0.0;
@@ -172,18 +153,21 @@ class OdomPublisher : public rclcpp::Node
 
 };
 
+// example about pub cmd_vel manually: ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 2.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 1.8}}"
+
+ThreadPool pool;
+
 int main(int argc, char * argv[]) {
     rclcpp::init(argc, argv);
 
     // publish tf from world to map 
     StaticFramePublisher static_pub;
 
-    auto init_pose_sub_ptr = std::make_shared<InitialPoseSubscriber>(); 
+    // subscribe cmd vel
+    auto cmd_vel_sub_ptr   = std::make_shared<FakeRobotSubscriber>(); 
 
-    auto cmd_vel_sub_ptr   = std::make_shared<CmdVelSubscriber>(); 
-
+    // publish odom
     auto odom_pub_ptr   = std::make_shared<OdomPublisher>(); 
-
 
     rclcpp::WallRate loop_rate(1/control_frequency);
 
@@ -192,7 +176,6 @@ int main(int argc, char * argv[]) {
 
         RCLCPP_INFO(rclcpp::get_logger("newNode"), "-------timer callback!-----------");
         odom_pub_ptr->publish_odometry();
-        rclcpp::spin_some(init_pose_sub_ptr);
         rclcpp::spin_some(cmd_vel_sub_ptr);
         loop_rate.sleep();
     }

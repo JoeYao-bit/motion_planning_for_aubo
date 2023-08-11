@@ -13,13 +13,13 @@ nav_msgs::msg::Odometry odom_msg;
 
 std::vector<PoseSE2> discrete_path;
 
-class GlobalPathSubscriber : public rclcpp::Node
+class TEBSubscriber : public rclcpp::Node
 {
 public:
-  GlobalPathSubscriber()
-  : Node("global_path_subscriber")
+  TEBSubscriber()
+  : Node("teb_subscriber")
   {
-    subscription_ = this->create_subscription<nav_msgs::msg::Path>("/global_path", 10, std::bind(&GlobalPathSubscriber::topic_callback, this, _1));
+    subscription_ = this->create_subscription<nav_msgs::msg::Path>("/global_path", 10, std::bind(&TEBSubscriber::topic_callback, this, _1));
 
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
   }
@@ -43,6 +43,11 @@ private:
       }
       new_path = true;
       discrete_path = pathDiscretize(global_path, .2);
+      std::cout << " discrete_path: ";
+      for(const auto& wpt : discrete_path) {
+              std::cout << wpt.position() << "->" << std::endl;
+      }
+      std::cout << std::endl;
       //std::cout << " pathd.size() = " << global_path.size() << " / path.size() = " << path.size() << std::endl;
     }
   }
@@ -137,6 +142,7 @@ private:
 
   void topic_callback(const nav_msgs::msg::Odometry::SharedPtr msg) const
   {
+    RCLCPP_INFO(this->get_logger(), "TEB Receive Odom %f %f", msg->pose.pose.position.x, msg->pose.pose.position.y);
     odom_msg = nav_msgs::msg::Odometry(*msg);
   }
 
@@ -160,7 +166,7 @@ int main(int argc, char * argv[]) {
     rclcpp::init(argc, argv);
 
     // subscribe glboal path 
-    auto global_path_sub = std::make_shared<GlobalPathSubscriber>();
+    auto teb_sub = std::make_shared<TEBSubscriber>();
 
     // subscribe odometry 
     auto odometry_sub = std::make_shared<OdometrySubscriber>();
@@ -181,42 +187,45 @@ int main(int argc, char * argv[]) {
         
         RCLCPP_INFO(rclcpp::get_logger("newNode"), "-------timer callback!-----------");
         vx = 0, vy = 0, w = 0;
-        // if(new_path) {
-        //   // check whether reach target
-        //   geometry_msgs::msg::Point robot_pose = odom_msg.pose.pose.position;
-        //   double dx = global_path.back()[0] - robot_pose.x;
-        //   double dy = global_path.back()[1] - robot_pose.y;
-        //   //double delta_orient = g2o::normalize_theta( tf2::getYaw(global_goal.pose.orientation) - robot_pose_.theta() );
-        //   if(fabs(std::sqrt(dx*dx+dy*dy)) < config.goal_tolerance.xy_goal_tolerance
-        //     //&& fabs(delta_orient) < cfg_.goal_tolerance.yaw_goal_tolerance
-        //     //&& (!config.goal_tolerance.complete_global_plan || via_points_.size() == 0)
-        //     //&& (base_local_planner::stopped(base_odom, config.goal_tolerance.theta_stopped_vel, config.goal_tolerance.trans_stopped_vel) || config.goal_tolerance.free_goal_vel)
-        //     )
-        //   {
-        //     new_path = false;
-        //   } else {
-        //     // if not, start TEB 
-        //     std::cout << "-- start TEB " << std::endl;
-        //     if(!teb_planner.isInitialize()) {
-        //         teb_planner.initialize(config, robot_model, &via_points);
-        //     }
-        //     teb_planner.setVelocityStart(Eigen::Vector3d(0, 0, 0));
-        //     teb_planner.setVelocityGoal(Eigen::Vector3d(0, 0, 0));
-        //     //std::cout << "-- teb initialized " << std::endl;
-        //     if(teb_planner.plan(discrete_path, Eigen::Vector3d(), false)) {
-        //         //std::cout << "-- teb success" << std::endl;
-        //         teb_planner.getFullTrajectory(result_traj, time_diffs);
-        //         teb_planner.getVelocityCommand(vx, vy, w, 4);
-        //         //std::cout << "velocity command = " << vx << ", " << vy << ", " << w << std::endl;
-        //         RCLCPP_INFO(rclcpp::get_logger("newNode"), "-- velocity command (vx, vy, w) = %f %f %f", vx, vy, w);
-        //     } else {
-        //         RCLCPP_INFO(rclcpp::get_logger("newNode"), "-- teb failed");
-        //     }
-        //     teb_planner.clearPlanner();
-        //   }
-        // }
-        cmd_vel_pub.publishCmdVel(vx, vy, w);
-        rclcpp::spin_some(global_path_sub);
+        if(new_path) {
+          // check whether reach target
+          geometry_msgs::msg::Point robot_pose = odom_msg.pose.pose.position;
+          double dx = global_path.back()[0] - robot_pose.x;
+          double dy = global_path.back()[1] - robot_pose.y;
+          //double delta_orient = g2o::normalize_theta( tf2::getYaw(global_goal.pose.orientation) - robot_pose_.theta() );
+          if(fabs(std::sqrt(dx*dx+dy*dy)) < config.goal_tolerance.xy_goal_tolerance
+            //&& fabs(delta_orient) < cfg_.goal_tolerance.yaw_goal_tolerance
+            //&& (!config.goal_tolerance.complete_global_plan || via_points_.size() == 0)
+            //&& (base_local_planner::stopped(base_odom, config.goal_tolerance.theta_stopped_vel, config.goal_tolerance.trans_stopped_vel) || config.goal_tolerance.free_goal_vel)
+            )
+          {
+            RCLCPP_INFO(rclcpp::get_logger("newNode"), "reach target");
+            new_path = false;
+            cmd_vel_pub.publishCmdVel(0, 0, 0);
+          } else {
+            // if not, start TEB 
+            std::cout << "-- start TEB " << std::endl;
+            if(!teb_planner.isInitialize()) {
+                teb_planner.initialize(config, robot_model, &via_points);
+            }
+            teb_planner.setVelocityStart(Eigen::Vector3d(0, 0, 0));
+            teb_planner.setVelocityGoal(Eigen::Vector3d(0, 0, 0));
+            //std::cout << "-- teb initialized " << std::endl;
+            if(teb_planner.plan(discrete_path, Eigen::Vector3d(), false)) {
+                //std::cout << "-- teb success" << std::endl;
+                teb_planner.getFullTrajectory(result_traj, time_diffs);
+                teb_planner.getVelocityCommand(vx, vy, w, 4);
+                //std::cout << "velocity command = " << vx << ", " << vy << ", " << w << std::endl;
+                RCLCPP_INFO(rclcpp::get_logger("newNode"), "-- velocity command (vx, vy, w) = %f %f %f", vx, vy, w);
+            } else {
+                RCLCPP_INFO(rclcpp::get_logger("newNode"), "-- teb failed");
+            }
+            teb_planner.clearPlanner();
+            cmd_vel_pub.publishCmdVel(vx, vy, w);
+          }
+        }
+        //cmd_vel_pub.publishCmdVel(0.5, 0, 0);
+        rclcpp::spin_some(teb_sub);
         rclcpp::spin_some(odometry_sub);
         loop_rate.sleep();
     }

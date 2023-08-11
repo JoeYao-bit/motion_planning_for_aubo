@@ -95,11 +95,16 @@ class OdomPublisher : public rclcpp::Node
 
     void publish_odometry()
     {
-      const auto& current_pose = pose_with_covariance.pose;
+      auto& current_pose = pose_with_covariance.pose;
 
       double x = current_pose.position.x + control_frequency*cmd_vel.linear.x * cos(tf2::getYaw(current_pose.orientation));
       double y = current_pose.position.y;// + control_frequency*cmd_vel.linear.x * sin(tf::getYaw(current_pose.orientation));
       double yaw = tf2::getYaw(current_pose.orientation) + control_frequency*cmd_vel.angular.z;
+
+      current_pose.position.x = x;
+      current_pose.position.y = y;
+      tf2::Quaternion quat; quat.setRPY(0, 0, yaw);
+      current_pose.orientation = tf2::toMsg(quat);
 
       double vx = cmd_vel.linear.x;
       double vy = 0.0;
@@ -108,7 +113,7 @@ class OdomPublisher : public rclcpp::Node
       rclcpp::Time current_time = this->get_clock()->now();
 
       //since all odometry is 6DOF we'll need a quaternion created from yaw
-      tf2::Quaternion quat; quat.setRPY(0, 0, yaw);
+      quat.setRPY(0, 0, yaw);
       geometry_msgs::msg::Quaternion odom_quat = tf2::toMsg(quat);//tf2_ros::createQuaternionMsgFromRollPitchYaw(1.581071,0,yaw);
 
       //first, we'll publish the transform over tf

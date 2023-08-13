@@ -198,8 +198,8 @@ public:
         trajectory.allow_init_with_backwards_motion = false;
         trajectory.global_plan_viapoint_sep = -1;
         trajectory.via_points_ordered = false;
-        trajectory.max_global_plan_lookahead_dist = 1;
-        trajectory.global_plan_prune_distance = 1;
+        trajectory.max_global_plan_lookahead_dist = 1.;
+        trajectory.global_plan_prune_distance = .5;
         trajectory.exact_arc_length = false;
         trajectory.force_reinit_new_goal_dist = 1;
         trajectory.force_reinit_new_goal_angular = 0.5 * M_PI;

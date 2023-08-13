@@ -52,7 +52,8 @@ private:
 };
 
 
-bool pruneGlobalPlan(const geometry_msgs::msg::PoseStamped& global_pose, std::vector<PoseSE2>& global_plan, double dist_behind_robot)
+bool pruneGlobalPlan(const geometry_msgs::msg::PoseStamped& global_pose, std::vector<PoseSE2>& global_plan, 
+                     double dist_behind_robot, double max_global_path_ahead_dist)
 {
   if (global_plan.empty())
     return true;
@@ -89,7 +90,6 @@ bool pruneGlobalPlan(const geometry_msgs::msg::PoseStamped& global_pose, std::ve
     if (erase_end != global_plan.begin())
       global_plan.erase(global_plan.begin(), erase_end);
 
-    //  
   }
   catch (const tf2::TransformException& ex)
   {
@@ -97,6 +97,29 @@ bool pruneGlobalPlan(const geometry_msgs::msg::PoseStamped& global_pose, std::ve
     RCLCPP_INFO(rclcpp::get_logger("newNode"), "Cannot prune path since no transform is available: %s\n", ex.what());
     return false;
   }
+  // cut to the neartes dist 
+  double current_dist = 0;
+  std::vector<PoseSE2> retv = {global_plan.front()};
+  for(int i=0; i<global_plan.size()-1; i++) {
+    // get current line
+    Eigen::Vector2d  line = (global_plan[i+1]-global_plan[i]).position();
+    double temp = current_dist + line.norm();
+    if(temp < max_global_path_ahead_dist) {
+      current_dist = temp;
+      retv.push_back(global_plan[i+1]);
+    } else if (temp > max_global_path_ahead_dist) {
+      double forward_dist = max_global_path_ahead_dist - current_dist;
+      // move forward
+      line = line/line.norm();
+      Eigen::Vector2d forward_pt = global_plan[i].position() + line * forward_dist;
+      retv.push_back(PoseSE2(forward_pt, 0));
+      break;
+    } else {
+      retv.push_back(global_plan[i+1]);
+      break;
+    }
+  }
+  global_plan = retv;
   return true;
 }
 
@@ -293,6 +316,49 @@ class TEBPathPublisher : public rclcpp::Node
 };
 
 
+class TEBInputPathPublisher : public rclcpp::Node
+{
+  public:
+    TEBInputPathPublisher()
+    : Node("TebInputPathPublisher")
+    {
+      publisher_ = this->create_publisher<nav_msgs::msg::Path>("/teb_input_path", 10);
+    }
+ 
+    void publishTraj(const std::vector<PoseSE2>& traj)
+    {
+      if(traj.size() < 2) {
+        RCLCPP_INFO(this->get_logger(), "TEB traj size %i way points, < 2, do not publish ", traj.size());
+        return;
+      }
+      auto message = nav_msgs::msg::Path();
+
+      message.header.stamp = this->get_clock()->now();
+      message.header.frame_id = "/map";
+      std::cout << " teb traj: ";
+      for(const auto& pt : traj) {
+        geometry_msgs::msg::PoseStamped pose;
+        pose.header.stamp = this->get_clock()->now();
+        pose.header.frame_id = "/map";
+        pose.pose.position.x = pt.x();
+        pose.pose.position.y = pt.y();
+        tf2::Quaternion quat; quat.setRPY(0, 0, pt.theta());
+        pose.pose.orientation = tf2::toMsg(quat);
+        message.poses.push_back(pose);
+        std::cout << "(" << pt.x() << ", " << pt.y() << ", " << pt.theta() << ")";
+      }
+      std::cout << std::endl;
+      RCLCPP_INFO(this->get_logger(), "Publis TEB traj with %i way points", traj.size());
+      publisher_->publish(message);
+    }
+
+  private:
+
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr publisher_;
+
+};
+
+
 class OdometrySubscriber : public rclcpp::Node
 {
 public:
@@ -351,6 +417,8 @@ int main(int argc, char * argv[]) {
 
     TEBPathPublisher teb_traj_pub;
 
+    TEBInputPathPublisher teb_input_pub;
+
     while (rclcpp::ok())
     {
         
@@ -370,7 +438,7 @@ int main(int argc, char * argv[]) {
           }
           std::cout << " final yaw = " << tf2::getYaw(path_msg.poses.back().pose.orientation) << std::endl;
           auto pruned_path = global_path;
-          if(pruneGlobalPlan(robot_pose, pruned_path, config.trajectory.global_plan_prune_distance)) {
+          if(pruneGlobalPlan(robot_pose, pruned_path, config.trajectory.global_plan_prune_distance, config.trajectory.max_global_plan_lookahead_dist)) {
             // after prune
             std::cout << " after prune: ";
             for(const auto& gp : pruned_path) {
@@ -421,6 +489,7 @@ int main(int argc, char * argv[]) {
               }
               auto pruned_path_discrete = pathDiscretize(pruned_path,.3);
               pruned_path_discrete.front().theta() = tf2::getYaw(robot_pose.pose.orientation);
+              teb_input_pub.publishTraj(pruned_path_discrete);
               //std::cout << "-- teb initialized " << std::endl;
               if(teb_planner.plan(pruned_path_discrete, Eigen::Vector3d(c_vx, c_vy, c_w), false)) {
                   //std::cout << "-- teb success" << std::endl;

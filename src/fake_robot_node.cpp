@@ -4,7 +4,7 @@
 
 using std::placeholders::_1;
 
-geometry_msgs::msg::Twist cmd_vel;
+geometry_msgs::msg::Twist cmd_vel, pre_cmd_vel;
 geometry_msgs::msg::PoseWithCovariance pose_with_covariance;
 
 class StaticFramePublisher : public rclcpp::Node
@@ -13,14 +13,13 @@ public:
   explicit StaticFramePublisher()
   : Node("static_turtle_tf2_broadcaster")
   {
-    tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
+    tf_static_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
     // Publish static transforms once at startup
-    this->make_transforms();
+    //this->make_transforms();
   }
 
-private:
-  void make_transforms()
+  void pub_transforms()
   {
     geometry_msgs::msg::TransformStamped t;
 
@@ -41,7 +40,10 @@ private:
     tf_static_broadcaster_->sendTransform(t);
   }
 
-  std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_broadcaster_;
+private:
+
+  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_static_broadcaster_;
+
 };
 
 class FakeRobotSubscriber : public rclcpp::Node
@@ -72,7 +74,7 @@ private:
   {
     RCLCPP_INFO(this->get_logger(), "Receive cmd start");
     geometry_msgs::msg::Vector3 v = msg->linear;
-    geometry_msgs::msg::Vector3 w = msg->linear;
+    geometry_msgs::msg::Vector3 w = msg->angular;
     RCLCPP_INFO(this->get_logger(), "Receive cmd vel(vx, w): %f, %f, %f", v.x, v.y, w.z);
     cmd_vel = *msg;
   }
@@ -97,9 +99,15 @@ class OdomPublisher : public rclcpp::Node
     {
       auto& current_pose = pose_with_covariance.pose;
 
-      double x = current_pose.position.x + control_frequency*cmd_vel.linear.x * cos(tf2::getYaw(current_pose.orientation));
-      double y = current_pose.position.y;// + control_frequency*cmd_vel.linear.x * sin(tf::getYaw(current_pose.orientation));
-      double yaw = tf2::getYaw(current_pose.orientation) + control_frequency*cmd_vel.angular.z;
+      double x = current_pose.position.x + control_frequency*(cmd_vel.linear.x + pre_cmd_vel.linear.x ) * cos(tf2::getYaw(current_pose.orientation)) / 2.;
+      double y = current_pose.position.y + control_frequency*(cmd_vel.linear.x + pre_cmd_vel.linear.x ) * sin(tf2::getYaw(current_pose.orientation)) / 2.;
+      double yaw = tf2::getYaw(current_pose.orientation) + control_frequency*(cmd_vel.angular.z + pre_cmd_vel.angular.z) / 2.;
+     
+      // double x = current_pose.position.x + control_frequency* ( cmd_vel.linear.x + pre_cmd_vel.linear.x) * cos(tf2::getYaw(current_pose.orientation)) / 2.;
+      // double y = current_pose.position.y + control_frequency* ( cmd_vel.linear.x + pre_cmd_vel.linear.x) * sin(tf2::getYaw(current_pose.orientation)) / 2.;
+      // double yaw = tf2::getYaw(current_pose.orientation) + control_frequency*(cmd_vel.angular.z + pre_cmd_vel.angular.z) / 2.;
+
+      pre_cmd_vel = cmd_vel;
 
       current_pose.position.x = x;
       current_pose.position.y = y;
@@ -155,6 +163,8 @@ class OdomPublisher : public rclcpp::Node
 
     std::shared_ptr<tf2_ros::TransformBroadcaster> odom_broadcaster_;
 
+    //std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+
 
 };
 
@@ -181,6 +191,7 @@ int main(int argc, char * argv[]) {
 
         RCLCPP_INFO(rclcpp::get_logger("newNode"), "-------timer callback!-----------");
         odom_pub_ptr->publish_odometry();
+        static_pub.pub_transforms();
         rclcpp::spin_some(cmd_vel_sub_ptr);
         loop_rate.sleep();
     }

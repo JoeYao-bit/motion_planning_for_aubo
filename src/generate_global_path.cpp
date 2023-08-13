@@ -28,20 +28,23 @@ class GlobalPathPublisher : public rclcpp::Node
  
     void publishPath(const Pathd<2>& path)
     {
+      if(path.size() < 2) {
+        RCLCPP_INFO(this->get_logger(), "Global path size %i way points, < 2, do not publish ", path.size());
+        return;
+      }
       auto message = nav_msgs::msg::Path();
 
       message.header.stamp = this->get_clock()->now();
-      message.header.frame_id = "map";
+      message.header.frame_id = "/map";
 
       for(const auto& pt : path) {
         geometry_msgs::msg::PoseStamped pose;
         pose.header.stamp = this->get_clock()->now();
-        pose.header.frame_id = "map";
+        pose.header.frame_id = "/map";
         pose.pose.position.x = pt[0];
         pose.pose.position.y = pt[1];
         message.poses.push_back(pose);
       }
-
       RCLCPP_INFO(this->get_logger(), "Publis global path with %i way points", path.size());
       std::cout << path << std::endl;
       publisher_->publish(message);

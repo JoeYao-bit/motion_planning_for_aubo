@@ -23,4 +23,4 @@
 #include "nav_msgs/msg/odometry.hpp"
 #include "nav_msgs/msg/path.hpp"
 
-const double control_frequency = 1;
+const double control_frequency = .1;

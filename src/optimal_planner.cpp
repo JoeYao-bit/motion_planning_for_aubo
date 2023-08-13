@@ -397,7 +397,7 @@ void TebOptimalPlanner::AddEdgesVelocity()
     void TebOptimalPlanner::AddTEBVertices()
     {
         // add vertices to graph
-        std::cout << "Adding TEB vertices ..." << std::endl;
+        //std::cout << "Adding TEB vertices ..." << std::endl;
         unsigned int id_counter = 0; // used for vertices ids
         for (int i=0; i<teb_.sizePoses(); ++i)
         {

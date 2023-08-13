@@ -15,10 +15,10 @@ namespace freeNav::RimJump {
      * decompose the line to some small segments
      * no first element
      * */
-    std::vector<PoseSE2> lineDiscretize(const Pointd<2> &p1, const Pointd<2> &p2, double interval);
+    std::vector<PoseSE2> lineDiscretize(const PoseSE2 &p1, const PoseSE2 &p2, double interval);
 
 
-    std::vector<PoseSE2> pathDiscretize(const Pointds<2> &pf, double interval);
+    std::vector<PoseSE2> pathDiscretize(const std::vector<PoseSE2> &pf, double interval);
 
 }
 

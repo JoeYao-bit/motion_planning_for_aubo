@@ -192,7 +192,7 @@ public:
         trajectory.teb_autosize = true;
         trajectory.dt_ref = 0.3;
         trajectory.dt_hysteresis = 0.1;
-        trajectory.min_samples = 10;
+        trajectory.min_samples = 5;
         trajectory.max_samples = 500;
         trajectory.global_plan_overwrite_orientation = true;
         trajectory.allow_init_with_backwards_motion = false;
@@ -225,7 +225,7 @@ public:
 
         // GoalTolerance
 
-        goal_tolerance.xy_goal_tolerance = 0.2;
+        goal_tolerance.xy_goal_tolerance = 0.1;
         goal_tolerance.yaw_goal_tolerance = 0.2;
         goal_tolerance.free_goal_vel = false;
         goal_tolerance.trans_stopped_vel = 0.1;

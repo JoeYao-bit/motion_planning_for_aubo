@@ -16,6 +16,9 @@ ThreadPool planning_thread;
 Canvas canvas("Set Global Path", 1000, 700, 200);
 double current_time = 0;
 
+Pathd<2> error_path = {{-0.995, -0.02}, {-0.515, -0.24}, {0.155, -0.2}, 
+                      {0.825, 0.03}, {1.7, 0.375}, {2.235, -0.46}, 
+                      {1.905, -1.165}, {1.08, -1.48}, {0.365, -1.485}};
 class GlobalPathPublisher : public rclcpp::Node
 {
   public:
@@ -91,7 +94,7 @@ int main(int argc, char * argv[]) {
             if(planning_thread.pool_[0].joinable()) {
                 planning_thread.Schedule([&] {
                     // publish global path to ros2
-                    global_path_pub.publishPath(pathd);
+                    global_path_pub.publishPath(error_path); // pathd
                 });
             }
         }

@@ -54,4 +54,28 @@ namespace freeNav::RimJump {
         return true;
     }
 
+    double areaOfThreePoints(const Eigen::Vector2d& pt1, const Eigen::Vector2d& pt2, const Eigen::Vector2d& pt3) {
+        double d1 = (pt1 - pt2).norm(), d2 = (pt2 - pt3).norm(), d3 = (pt1 - pt3).norm();
+        double p = (d1 + d2 + d3)/2.;
+        return sqrt(p*(p-d1)*(p-d2)*(p-d3));
+    }
+
+    double pointDistToLine(const Eigen::Vector2d& pt, const Eigen::Vector2d& line1, const Eigen::Vector2d& line2, Eigen::Vector2d& closest_pt) {
+        double area = areaOfThreePoints(pt, line1, line2);
+        double base_length = (line1-line2).norm();
+        double d1 = (line1-pt).norm(), d2 = (line2 - pt).norm(), d3 = (line1 - line2).norm();
+        double cos1 = ( pow(d1, 2) + pow(d3, 2) - pow(d2, 2) ) / (2.*d1*d3);
+        double cos2 = ( pow(d2, 2) + pow(d3, 2) - pow(d1, 2) ) / (2.*d2*d3);
+        if(cos1 < 0) {
+            closest_pt = line1; 
+            return d1;
+        } else if (cos2 < 0) {
+            closest_pt = line2; 
+            return d2;
+        }
+        double min_dist = 2*area / base_length;
+        closest_pt = line1 + d1 * cos1 * (line2 - line1)/(line2 - line1).norm();
+        return min_dist;
+    }
+
 }

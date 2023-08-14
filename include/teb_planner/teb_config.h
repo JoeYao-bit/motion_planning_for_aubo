@@ -190,7 +190,7 @@ public:
         // Trajectory
 
         trajectory.teb_autosize = true;
-        trajectory.dt_ref = 0.3;
+        trajectory.dt_ref = 0.4;
         trajectory.dt_hysteresis = 0.1;
         trajectory.min_samples = 5;
         trajectory.max_samples = 500;
@@ -274,7 +274,7 @@ public:
         optim.weight_dynamic_obstacle = 50;
         optim.weight_dynamic_obstacle_inflation = 0.1;
         optim.weight_velocity_obstacle_ratio = 0;
-        optim.weight_viapoint = 4; // Optimization weight for minimzing the distance to via-points
+        optim.weight_viapoint = 10; // Optimization weight for minimzing the distance to via-points
         optim.weight_prefer_rotdir = 50;
 
         optim.weight_adapt_factor = 2.0;

@@ -131,6 +131,7 @@ bool pruneGlobalPlan(const geometry_msgs::msg::PoseStamped& global_pose, std::ve
     // if((global_plan.back().position() - closest_pt).norm() > 0.1) {
     //   global_plan.push_back(PoseSE2(closest_pt, 0));//global_se2
     // }
+    //global_plan.push_back(PoseSE2(closest_pt, 0));
     global_plan.push_back(global_se2);
     std::reverse(global_plan.begin(), global_plan.end());
   }
@@ -141,31 +142,31 @@ bool pruneGlobalPlan(const geometry_msgs::msg::PoseStamped& global_pose, std::ve
     return false;
   }
   // cut to the neartes dist 
-  // global_plan.front().x() = global_pose.pose.position.x;
-  // global_plan.front().y() = global_pose.pose.position.y;
-  // global_plan.front().theta() = tf2::getYaw(global_pose.pose.orientation);
-  // double current_dist = 0;
-  // std::vector<PoseSE2> retv = {global_plan.front()};
-  // for(int i=0; i<global_plan.size()-1; i++) {
-  //   // get current line
-  //   Eigen::Vector2d  line = (global_plan[i+1]-global_plan[i]).position();
-  //   double temp = current_dist + line.norm();
-  //   if(temp < max_global_path_ahead_dist) {
-  //     current_dist = temp;
-  //     retv.push_back(global_plan[i+1]);
-  //   } else if (temp > max_global_path_ahead_dist) {
-  //     double forward_dist = max_global_path_ahead_dist - current_dist;
-  //     // move forward
-  //     line = line/line.norm();
-  //     Eigen::Vector2d forward_pt = global_plan[i].position() + line * forward_dist;
-  //     retv.push_back(PoseSE2(forward_pt, 0));
-  //     break;
-  //   } else {
-  //     retv.push_back(global_plan[i+1]);
-  //     break;
-  //   }
-  // }
-  // global_plan = retv;
+  global_plan.front().x() = global_pose.pose.position.x;
+  global_plan.front().y() = global_pose.pose.position.y;
+  global_plan.front().theta() = tf2::getYaw(global_pose.pose.orientation);
+  double current_dist = 0;
+  std::vector<PoseSE2> retv = {global_plan.front()};
+  for(int i=0; i<global_plan.size()-1; i++) {
+    // get current line
+    Eigen::Vector2d  line = (global_plan[i+1]-global_plan[i]).position();
+    double temp = current_dist + line.norm();
+    if(temp < max_global_path_ahead_dist) {
+      current_dist = temp;
+      retv.push_back(global_plan[i+1]);
+    } else if (temp > max_global_path_ahead_dist) {
+      double forward_dist = max_global_path_ahead_dist - current_dist;
+      // move forward
+      line = line/line.norm();
+      Eigen::Vector2d forward_pt = global_plan[i].position() + line * forward_dist;
+      retv.push_back(PoseSE2(forward_pt, 0));
+      break;
+    } else {
+      retv.push_back(global_plan[i+1]);
+      break;
+    }
+  }
+  global_plan = retv;
   return true;
 }
 
@@ -354,8 +355,12 @@ int main(int argc, char * argv[]) {
             for(const auto& gp : pruned_path) {
               std::cout << "(" << gp.x() << ", " << gp.y() << ")->";
             }
-
-            Eigen::Vector2d yaw_vec = global_path.back().position() - global_path[global_path.size() - 2].position();
+            Eigen::Vector2d yaw_vec;
+            if(pruned_path.back().position() == global_path.back().position()) {
+              yaw_vec = global_path.back().position() - global_path[global_path.size() - 2].position();
+            } else {
+              yaw_vec = pruned_path.back().position() - pruned_path[pruned_path.size() - 2].position();
+            }
             yaw_vec = yaw_vec / yaw_vec.norm();
             std::cout << " yaw_vec " << yaw_vec.x() << ", " << yaw_vec.y() << std::endl;
             pruned_path.back().theta() = acos(yaw_vec.x()) * (yaw_vec.y() > 0 ? 1 : -1);

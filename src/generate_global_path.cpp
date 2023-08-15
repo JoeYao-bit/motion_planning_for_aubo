@@ -65,7 +65,7 @@ class GlobalPathPublisher : public rclcpp::Node
 int main(int argc, char * argv[]) {
 
     rclcpp::init(argc, argv);
-    auto callback = [](int event, int x, int y, int flags, void *){
+    auto callback = [](int event, int x, int y, int flags, void *) {
         if(event == CV_EVENT_LBUTTONDOWN) {
             click_point[0] = x;
             click_point[1] = y;
@@ -94,7 +94,8 @@ int main(int argc, char * argv[]) {
             if(planning_thread.pool_[0].joinable()) {
                 planning_thread.Schedule([&] {
                     // publish global path to ros2
-                    global_path_pub.publishPath(error_path); // pathd
+                    //global_path_pub.publishPath(error_path);
+                    global_path_pub.publishPath(pathd);
                 });
             }
         }

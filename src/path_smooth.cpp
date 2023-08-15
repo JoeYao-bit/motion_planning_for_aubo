@@ -25,10 +25,11 @@ namespace freeNav::RimJump {
             retv.push_back(buff2);
         }
         if (retv.empty()) {
-            retv.push_back(PoseSE2(p2.x(), p2.y(), buff2.theta()));
-        }
-        if (retv.back().x() != p2.x() || retv.back().y() != p2.y()) {
-            retv.push_back(PoseSE2(p2.x(), p2.y(), buff2.theta()));
+            retv.push_back(PoseSE2(p2.x(), p2.y(), p2.theta()));
+        } else {
+            if (retv.back().x() != p2.x() || retv.back().y() != p2.y()) {
+                retv.push_back(PoseSE2(p2.x(), p2.y(), buff2.theta()));
+            }
         }
         return retv;
     }

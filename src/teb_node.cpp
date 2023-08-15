@@ -398,6 +398,7 @@ int main(int argc, char * argv[]) {
               }
               auto pruned_path_discrete = pathDiscretize(pruned_path,.3);
               pruned_path_discrete.front().theta() = tf2::getYaw(robot_pose.pose.orientation);
+              pruned_path_discrete.back().theta() = pruned_path.back().theta();
               teb_input_pub.publishTraj(pruned_path_discrete);
 
               //if(first_new_path) 

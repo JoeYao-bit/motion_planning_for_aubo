@@ -286,8 +286,9 @@ public:
   OdometrySubscriber()
   : Node("odometry_subscriber")
   {
+    // = 10 cause delay in msg receive
     subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      "/odom", 10, std::bind(&OdometrySubscriber::topic_callback, this, _1));
+      "/odom", 1, std::bind(&OdometrySubscriber::topic_callback, this, _1));
   }
 
 
@@ -367,7 +368,7 @@ int main(int argc, char * argv[]) {
             double dy = pruned_path.back().y() - robot_pose.pose.position.y;
             RCLCPP_INFO(rclcpp::get_logger("newNode"), "complete global path state %i", config.goal_tolerance.complete_global_plan);
             if(fabs(std::sqrt(dx*dx+dy*dy)) < config.goal_tolerance.xy_goal_tolerance
-              && fabs(delta_orient) < config.goal_tolerance.yaw_goal_tolerance
+              //&& fabs(delta_orient) < config.goal_tolerance.yaw_goal_tolerance
               //&& (!config.goal_tolerance.complete_global_plan || via_points.size() == 0)
               //&& (base_local_planner::stopped(base_odom, config.goal_tolerance.theta_stopped_vel, config.goal_tolerance.trans_stopped_vel) || config.goal_tolerance.free_goal_vel)
               )

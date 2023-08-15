@@ -91,7 +91,7 @@ class OdomPublisher : public rclcpp::Node
     OdomPublisher()
     : Node("odom_publisher")
     {
-      publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
+      publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 1);
       odom_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
     }
 
@@ -102,6 +102,10 @@ class OdomPublisher : public rclcpp::Node
       double x = current_pose.position.x + control_frequency*(cmd_vel.linear.x + pre_cmd_vel.linear.x ) * cos(tf2::getYaw(current_pose.orientation)) / 2.;
       double y = current_pose.position.y + control_frequency*(cmd_vel.linear.x + pre_cmd_vel.linear.x ) * sin(tf2::getYaw(current_pose.orientation)) / 2.;
       double yaw = tf2::getYaw(current_pose.orientation) + control_frequency*(cmd_vel.angular.z + pre_cmd_vel.angular.z) / 2.;
+
+      std::cout << " pre yaw = " << tf2::getYaw(current_pose.orientation) << " / after yaw = " << yaw <<  std::endl;
+
+      std::cout << "FakeRobot cmd_vel " << cmd_vel.linear.x << ", " << cmd_vel.angular.z << " / pre_cmd_vel " << pre_cmd_vel.linear.x << ", " << pre_cmd_vel.angular.z << std::endl; 
      
       // double x = current_pose.position.x + control_frequency* ( cmd_vel.linear.x + pre_cmd_vel.linear.x) * cos(tf2::getYaw(current_pose.orientation)) / 2.;
       // double y = current_pose.position.y + control_frequency* ( cmd_vel.linear.x + pre_cmd_vel.linear.x) * sin(tf2::getYaw(current_pose.orientation)) / 2.;
@@ -148,6 +152,8 @@ class OdomPublisher : public rclcpp::Node
       odom.pose.pose.position.y = y;
       odom.pose.pose.position.z = 0.0;
       odom.pose.pose.orientation = odom_quat;//odom_quat;
+
+      std::cout << " pub yaw = " << tf2::getYaw(odom_quat) << std::endl;
 
       //set the velocity
       odom.child_frame_id = "/base_link";

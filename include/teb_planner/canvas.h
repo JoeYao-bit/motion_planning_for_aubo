@@ -2,8 +2,8 @@
 // Created by yaozhuo on 2021/9/20.
 //
 
-#ifndef FREENAV_CANVAS_H
-#define FREENAV_CANVAS_H
+#ifndef CANVAS_H
+#define CANVAS_H
 
 #include "color_table.h"
 #include <functional>

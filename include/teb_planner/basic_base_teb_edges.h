@@ -2,8 +2,8 @@
 // Created by yaozhuo on 2021/11/27.
 //
 
-#ifndef FREENAV_BASIC_BASE_TEB_EDGES_H
-#define FREENAV_BASIC_BASE_TEB_EDGES_H
+#ifndef BASIC_BASE_TEB_EDGES_H
+#define BASIC_BASE_TEB_EDGES_H
 
 #include <g2o/core/base_binary_edge.h>
 #include <g2o/core/base_unary_edge.h>

@@ -1,4 +1,7 @@
-#include <memory>
+#ifndef COMMON_H
+#define COMMOM_H
+
+#include <memory> // shared_ptr
 
 #include "point.h"
 #include "thread_pool.h"
@@ -28,3 +31,5 @@
 #include "nav_msgs/msg/occupancy_grid.hpp"
 
 const double control_frequency = .1;
+
+#endif

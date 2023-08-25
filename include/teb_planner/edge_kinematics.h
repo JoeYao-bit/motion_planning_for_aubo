@@ -41,8 +41,8 @@
  * Author: Christoph Rösmann
  *********************************************************************/
 
-#ifndef _EDGE_KINEMATICS_H
-#define _EDGE_KINEMATICS_H
+#ifndef EDGE_KINEMATICS_H
+#define EDGE_KINEMATICS_H
 
 #include "teb_vertex.h"
 #include "penalties.h"

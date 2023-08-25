@@ -2,8 +2,8 @@
 // Created by yaozhuo on 2021/11/28.
 //
 
-#ifndef FREENAV_DISTANVCE_CALCULATIONS_H
-#define FREENAV_DISTANVCE_CALCULATIONS_H
+#ifndef DISTANVCE_CALCULATIONS_H
+#define DISTANVCE_CALCULATIONS_H
 #include <Eigen/Core>
 #include "misc.h"
 //! Abbrev. for a container storing 2d points

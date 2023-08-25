@@ -1,3 +1,5 @@
+#ifndef PICTURE_MAP_LOADER_H
+#define PICTURE_MAP_LOADER_H
 #include "point.h"
 #include "opencv2/core/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
@@ -80,3 +82,5 @@ namespace freeNav {
     };
 
 }
+
+#endif

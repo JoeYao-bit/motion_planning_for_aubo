@@ -153,7 +153,7 @@ int main(int argc, char * argv[]) {
     int count = 0;
     while(rclcpp::ok()) {
       count ++;
-      count = count % 50; // pub map per second
+      count = count % 10; // pub map per second
       if(count == 0) {
         map_pub.publishMap(is_occupied, dimension);
       }

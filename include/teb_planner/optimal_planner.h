@@ -2,8 +2,8 @@
 // Created by yaozhuo on 2021/11/28.
 //
 
-#ifndef FREENAV_OPTIMAL_PLANNER_H
-#define FREENAV_OPTIMAL_PLANNER_H
+#ifndef OPTIMAL_PLANNER_H
+#define OPTIMAL_PLANNER_H
 
 #include <math.h>
 

@@ -71,7 +71,9 @@ public:
  * @param visual Shared pointer to the TebVisualization class (optional)
  * @param via_points Container storing via-points (optional)
  */
-    TebOptimalPlanner(const TebConfig& cfg, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
+    TebOptimalPlanner(const TebConfig& cfg, 
+                      const DIST_TO_OBSTACLE_FUNC& dist_func,
+                      RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
                       const ViaPointContainer* via_points = NULL);
 
     /**
@@ -87,7 +89,9 @@ public:
       * @param visual Shared pointer to the TebVisualization class (optional)
       * @param via_points Container storing via-points (optional)
       */
-    void initialize(const TebConfig& cfg, RobotFootprintModelPtr robot_model = boost::make_shared<PointRobotFootprint>(),
+    void initialize(const TebConfig& cfg, 
+                    const DIST_TO_OBSTACLE_FUNC& dist_func,
+                    const RobotFootprintModelPtr& robot_model = boost::make_shared<PointRobotFootprint>(),
                     const ViaPointContainer* via_points = NULL);
 
     bool isInitialize() {
@@ -533,6 +537,9 @@ protected:
      */
     void AddEdgesVelocityObstacleRatio();
 
+
+    void AddEdgesObstaclesGridMap(double weight_multiplier);
+
     //@}
 
 
@@ -559,6 +566,8 @@ protected:
 
     bool initialized_; //!< Keeps track about the correct initialization of this class
     bool optimized_; //!< This variable is \c true as long as the last optimization has been completed successful
+
+    DIST_TO_OBSTACLE_FUNC dist_func_;
 
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW

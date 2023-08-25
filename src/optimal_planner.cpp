@@ -20,9 +20,11 @@
     {
     }
 
-    TebOptimalPlanner::TebOptimalPlanner(const TebConfig& cfg, RobotFootprintModelPtr robot_model, const ViaPointContainer* via_points)
+    TebOptimalPlanner::TebOptimalPlanner(const TebConfig& cfg, 
+                                         const DIST_TO_OBSTACLE_FUNC& dist_func, 
+                                         RobotFootprintModelPtr robot_model, const ViaPointContainer* via_points)
     {
-        initialize(cfg, robot_model, via_points);
+        initialize(cfg, dist_func, robot_model, via_points);
     }
 
     TebOptimalPlanner::~TebOptimalPlanner()
@@ -40,7 +42,10 @@
         robot_model_ = robot_model;
     }
 
-    void TebOptimalPlanner::initialize(const TebConfig& cfg, RobotFootprintModelPtr robot_model, const ViaPointContainer* via_points)
+    void TebOptimalPlanner::initialize(const TebConfig& cfg, 
+                                       const DIST_TO_OBSTACLE_FUNC& dist_func, 
+                                       const RobotFootprintModelPtr& robot_model, 
+                                       const ViaPointContainer* via_points)
     {
         // init optimizer (set solver and block ordering settings)
         optimizer_ = initOptimizer();
@@ -61,6 +66,8 @@
         vel_goal_.second.y() = 0;
         vel_goal_.second.z() = 0;
         initialized_ = true;
+
+        dist_func_ = dist_func;
     }
 
 /*
@@ -240,105 +247,138 @@
         /* yz: add strafing constraint, limit robot from move in y direction when change direction */
         AddEdgesKinematicsDiffDrive();
 
+        /* yz: avoid collide with obstaccle in grid map */
+       //AddEdgesObstaclesGridMap(cfg_->optim.weight_obstacle);
+
         return true;
     }
 
 
-void TebOptimalPlanner::AddEdgesViaPoints()
-{
-    if (cfg_->optim.weight_viapoint==0 || via_points_==NULL || via_points_->empty() )
-        return; // if weight equals zero skip adding edges!
-
-    int start_pose_idx = 0;
-
-    int n = teb_.sizePoses();
-    if (n<3) // we do not have any degrees of freedom for reaching via-points
-        return;
-
-    for (ViaPointContainer::const_iterator vp_it = via_points_->begin(); vp_it != via_points_->end(); ++vp_it)
+    void TebOptimalPlanner::AddEdgesViaPoints()
     {
+        if (cfg_->optim.weight_viapoint==0 || via_points_==NULL || via_points_->empty() )
+            return; // if weight equals zero skip adding edges!
 
-        int index = teb_.findClosestTrajectoryPose(*vp_it, NULL, start_pose_idx);
-        if (cfg_->trajectory.via_points_ordered)
-            start_pose_idx = index+2; // skip a point to have a DOF inbetween for further via-points
+        int start_pose_idx = 0;
 
-        // check if point coincides with goal or is located behind it
-        if ( index > n-2 )
-            index = n-2; // set to a pose before the goal, since we can move it away!
-        // check if point coincides with start or is located before it
-        if ( index < 1)
+        int n = teb_.sizePoses();
+        if (n<3) // we do not have any degrees of freedom for reaching via-points
+            return;
+
+        for (ViaPointContainer::const_iterator vp_it = via_points_->begin(); vp_it != via_points_->end(); ++vp_it)
         {
+
+            int index = teb_.findClosestTrajectoryPose(*vp_it, NULL, start_pose_idx);
             if (cfg_->trajectory.via_points_ordered)
+                start_pose_idx = index+2; // skip a point to have a DOF inbetween for further via-points
+
+            // check if point coincides with goal or is located behind it
+            if ( index > n-2 )
+                index = n-2; // set to a pose before the goal, since we can move it away!
+            // check if point coincides with start or is located before it
+            if ( index < 1)
             {
-                index = 1; // try to connect the via point with the second (and non-fixed) pose. It is likely that autoresize adds new poses inbetween later.
+                if (cfg_->trajectory.via_points_ordered)
+                {
+                    index = 1; // try to connect the via point with the second (and non-fixed) pose. It is likely that autoresize adds new poses inbetween later.
+                }
+                else
+                {
+                    printf("TebOptimalPlanner::AddEdgesViaPoints(): skipping a via-point that is close or behind the current robot pose.");
+                    continue; // skip via points really close or behind the current robot pose
+                }
             }
-            else
+            Eigen::Matrix<double,1,1> information;
+            information.fill(cfg_->optim.weight_viapoint);
+
+            EdgeViaPoint* edge_viapoint = new EdgeViaPoint;
+            edge_viapoint->setVertex(0,teb_.PoseVertex(index));
+            edge_viapoint->setInformation(information);
+            edge_viapoint->setParameters(*cfg_, &(*vp_it));
+            optimizer_->addEdge(edge_viapoint);
+        }
+    }
+
+    void TebOptimalPlanner::AddEdgesVelocity()
+    {
+        if (cfg_->robot.max_vel_y == 0) // non-holonomic robot
+        {
+            if ( cfg_->optim.weight_max_vel_x==0 && cfg_->optim.weight_max_vel_theta==0)
+                return; // if weight equals zero skip adding edges!
+
+            int n = teb_.sizePoses();
+            Eigen::Matrix<double,2,2> information;
+            information(0,0) = cfg_->optim.weight_max_vel_x;
+            information(1,1) = cfg_->optim.weight_max_vel_theta;
+            information(0,1) = 0.0;
+            information(1,0) = 0.0;
+
+            for (int i=0; i < n - 1; ++i)
             {
-                printf("TebOptimalPlanner::AddEdgesViaPoints(): skipping a via-point that is close or behind the current robot pose.");
-                continue; // skip via points really close or behind the current robot pose
+                EdgeVelocity* velocity_edge = new EdgeVelocity;
+                velocity_edge->setVertex(0,teb_.PoseVertex(i));
+                velocity_edge->setVertex(1,teb_.PoseVertex(i+1));
+                velocity_edge->setVertex(2,teb_.TimeDiffVertex(i));
+                velocity_edge->setInformation(information);
+                velocity_edge->setTebConfig(*cfg_);
+                optimizer_->addEdge(velocity_edge);
             }
         }
+        else // holonomic-robot
+        {
+            if ( cfg_->optim.weight_max_vel_x==0 && cfg_->optim.weight_max_vel_y==0 && cfg_->optim.weight_max_vel_theta==0)
+                return; // if weight equals zero skip adding edges!
+
+            int n = teb_.sizePoses();
+            Eigen::Matrix<double,3,3> information;
+            information.fill(0);
+            information(0,0) = cfg_->optim.weight_max_vel_x;
+            information(1,1) = cfg_->optim.weight_max_vel_y;
+            information(2,2) = cfg_->optim.weight_max_vel_theta;
+
+            for (int i=0; i < n - 1; ++i)
+            {
+                EdgeVelocityHolonomic* velocity_edge = new EdgeVelocityHolonomic;
+                velocity_edge->setVertex(0,teb_.PoseVertex(i));
+                velocity_edge->setVertex(1,teb_.PoseVertex(i+1));
+                velocity_edge->setVertex(2,teb_.TimeDiffVertex(i));
+                velocity_edge->setInformation(information);
+                velocity_edge->setTebConfig(*cfg_);
+                optimizer_->addEdge(velocity_edge);
+            }
+
+        }
+    }
+
+    void TebOptimalPlanner::AddEdgesObstaclesGridMap(double weight_multiplier)
+    {
+        if (cfg_->optim.weight_obstacle==0 || weight_multiplier==0)// || obstacles_==nullptr )
+            return; // if weight equals zero skip adding edges!
+        
+        bool inflated = cfg_->obstacles.inflation_dist > cfg_->obstacles.min_obstacle_dist;
+
         Eigen::Matrix<double,1,1> information;
-        information.fill(cfg_->optim.weight_viapoint);
+        information.fill(cfg_->optim.weight_obstacle * weight_multiplier);
+        
+        auto create_edge = [ &information, this] (int index, const DIST_TO_OBSTACLE_FUNC& dist_func) {
 
-        EdgeViaPoint* edge_viapoint = new EdgeViaPoint;
-        edge_viapoint->setVertex(0,teb_.PoseVertex(index));
-        edge_viapoint->setInformation(information);
-        edge_viapoint->setParameters(*cfg_, &(*vp_it));
-        optimizer_->addEdge(edge_viapoint);
-    }
-}
+            EdgeObstacleGridMap* dist_obst = new EdgeObstacleGridMap;
+            dist_obst->setVertex(0,teb_.PoseVertex(index));
+            dist_obst->setInformation(information);
+            dist_obst->setParameters(*cfg_, dist_func);
+            optimizer_->addEdge(dist_obst);
+        
+        };
+        
+        // iterate all teb points, skipping the last and, if the EdgeVelocityObstacleRatio edges should not be created, the first one too
+        const int first_vertex = cfg_->optim.weight_velocity_obstacle_ratio == 0 ? 1 : 0;
+        for (int i = first_vertex; i < teb_.sizePoses() - 1; ++i)
+        {    
+            create_edge(i, dist_func_);
 
-void TebOptimalPlanner::AddEdgesVelocity()
-{
-    if (cfg_->robot.max_vel_y == 0) // non-holonomic robot
-    {
-        if ( cfg_->optim.weight_max_vel_x==0 && cfg_->optim.weight_max_vel_theta==0)
-            return; // if weight equals zero skip adding edges!
-
-        int n = teb_.sizePoses();
-        Eigen::Matrix<double,2,2> information;
-        information(0,0) = cfg_->optim.weight_max_vel_x;
-        information(1,1) = cfg_->optim.weight_max_vel_theta;
-        information(0,1) = 0.0;
-        information(1,0) = 0.0;
-
-        for (int i=0; i < n - 1; ++i)
-        {
-            EdgeVelocity* velocity_edge = new EdgeVelocity;
-            velocity_edge->setVertex(0,teb_.PoseVertex(i));
-            velocity_edge->setVertex(1,teb_.PoseVertex(i+1));
-            velocity_edge->setVertex(2,teb_.TimeDiffVertex(i));
-            velocity_edge->setInformation(information);
-            velocity_edge->setTebConfig(*cfg_);
-            optimizer_->addEdge(velocity_edge);
         }
     }
-    else // holonomic-robot
-    {
-        if ( cfg_->optim.weight_max_vel_x==0 && cfg_->optim.weight_max_vel_y==0 && cfg_->optim.weight_max_vel_theta==0)
-            return; // if weight equals zero skip adding edges!
 
-        int n = teb_.sizePoses();
-        Eigen::Matrix<double,3,3> information;
-        information.fill(0);
-        information(0,0) = cfg_->optim.weight_max_vel_x;
-        information(1,1) = cfg_->optim.weight_max_vel_y;
-        information(2,2) = cfg_->optim.weight_max_vel_theta;
-
-        for (int i=0; i < n - 1; ++i)
-        {
-            EdgeVelocityHolonomic* velocity_edge = new EdgeVelocityHolonomic;
-            velocity_edge->setVertex(0,teb_.PoseVertex(i));
-            velocity_edge->setVertex(1,teb_.PoseVertex(i+1));
-            velocity_edge->setVertex(2,teb_.TimeDiffVertex(i));
-            velocity_edge->setInformation(information);
-            velocity_edge->setTebConfig(*cfg_);
-            optimizer_->addEdge(velocity_edge);
-        }
-
-    }
-}
 
     bool TebOptimalPlanner::optimizeGraph(int no_iterations,bool clear_after)
     {
@@ -639,129 +679,129 @@ void TebOptimalPlanner::AddEdgesVelocity()
     }
 
 
-void TebOptimalPlanner::AddEdgesAcceleration()
-{
-    if (cfg_->optim.weight_acc_lim_x==0  && cfg_->optim.weight_acc_lim_theta==0)
-        return; // if weight equals zero skip adding edges!
-
-    int n = teb_.sizePoses();
-
-    if (cfg_->robot.max_vel_y == 0 || cfg_->robot.acc_lim_y == 0) // non-holonomic robot
+    void TebOptimalPlanner::AddEdgesAcceleration()
     {
-        Eigen::Matrix<double,2,2> information;
-        information.fill(0);
-        information(0,0) = cfg_->optim.weight_acc_lim_x;
-        information(1,1) = cfg_->optim.weight_acc_lim_theta;
+        if (cfg_->optim.weight_acc_lim_x==0  && cfg_->optim.weight_acc_lim_theta==0)
+            return; // if weight equals zero skip adding edges!
 
-        // check if an initial velocity should be taken into accound
-        if (vel_start_.first)
+        int n = teb_.sizePoses();
+
+        if (cfg_->robot.max_vel_y == 0 || cfg_->robot.acc_lim_y == 0) // non-holonomic robot
         {
-            EdgeAccelerationStart* acceleration_edge = new EdgeAccelerationStart;
-            acceleration_edge->setVertex(0,teb_.PoseVertex(0));
-            acceleration_edge->setVertex(1,teb_.PoseVertex(1));
-            acceleration_edge->setVertex(2,teb_.TimeDiffVertex(0));
-            acceleration_edge->setInitialVelocity(vel_start_.second);
-            acceleration_edge->setInformation(information);
-            acceleration_edge->setTebConfig(*cfg_);
-            optimizer_->addEdge(acceleration_edge);
+            Eigen::Matrix<double,2,2> information;
+            information.fill(0);
+            information(0,0) = cfg_->optim.weight_acc_lim_x;
+            information(1,1) = cfg_->optim.weight_acc_lim_theta;
+
+            // check if an initial velocity should be taken into accound
+            if (vel_start_.first)
+            {
+                EdgeAccelerationStart* acceleration_edge = new EdgeAccelerationStart;
+                acceleration_edge->setVertex(0,teb_.PoseVertex(0));
+                acceleration_edge->setVertex(1,teb_.PoseVertex(1));
+                acceleration_edge->setVertex(2,teb_.TimeDiffVertex(0));
+                acceleration_edge->setInitialVelocity(vel_start_.second);
+                acceleration_edge->setInformation(information);
+                acceleration_edge->setTebConfig(*cfg_);
+                optimizer_->addEdge(acceleration_edge);
+            }
+
+            // now add the usual acceleration edge for each tuple of three teb poses
+            for (int i=0; i < n - 2; ++i)
+            {
+                EdgeAcceleration* acceleration_edge = new EdgeAcceleration;
+                acceleration_edge->setVertex(0,teb_.PoseVertex(i));
+                acceleration_edge->setVertex(1,teb_.PoseVertex(i+1));
+                acceleration_edge->setVertex(2,teb_.PoseVertex(i+2));
+                acceleration_edge->setVertex(3,teb_.TimeDiffVertex(i));
+                acceleration_edge->setVertex(4,teb_.TimeDiffVertex(i+1));
+                acceleration_edge->setInformation(information);
+                acceleration_edge->setTebConfig(*cfg_);
+                optimizer_->addEdge(acceleration_edge);
+            }
+
+            // check if a goal velocity should be taken into accound
+            if (vel_goal_.first)
+            {
+                EdgeAccelerationGoal* acceleration_edge = new EdgeAccelerationGoal;
+                acceleration_edge->setVertex(0,teb_.PoseVertex(n-2));
+                acceleration_edge->setVertex(1,teb_.PoseVertex(n-1));
+                acceleration_edge->setVertex(2,teb_.TimeDiffVertex( teb_.sizeTimeDiffs()-1 ));
+                acceleration_edge->setGoalVelocity(vel_goal_.second);
+                acceleration_edge->setInformation(information);
+                acceleration_edge->setTebConfig(*cfg_);
+                optimizer_->addEdge(acceleration_edge);
+            }
         }
-
-        // now add the usual acceleration edge for each tuple of three teb poses
-        for (int i=0; i < n - 2; ++i)
+        else // holonomic robot
         {
-            EdgeAcceleration* acceleration_edge = new EdgeAcceleration;
-            acceleration_edge->setVertex(0,teb_.PoseVertex(i));
-            acceleration_edge->setVertex(1,teb_.PoseVertex(i+1));
-            acceleration_edge->setVertex(2,teb_.PoseVertex(i+2));
-            acceleration_edge->setVertex(3,teb_.TimeDiffVertex(i));
-            acceleration_edge->setVertex(4,teb_.TimeDiffVertex(i+1));
-            acceleration_edge->setInformation(information);
-            acceleration_edge->setTebConfig(*cfg_);
-            optimizer_->addEdge(acceleration_edge);
-        }
+            Eigen::Matrix<double,3,3> information;
+            information.fill(0);
+            information(0,0) = cfg_->optim.weight_acc_lim_x;
+            information(1,1) = cfg_->optim.weight_acc_lim_y;
+            information(2,2) = cfg_->optim.weight_acc_lim_theta;
 
-        // check if a goal velocity should be taken into accound
-        if (vel_goal_.first)
-        {
-            EdgeAccelerationGoal* acceleration_edge = new EdgeAccelerationGoal;
-            acceleration_edge->setVertex(0,teb_.PoseVertex(n-2));
-            acceleration_edge->setVertex(1,teb_.PoseVertex(n-1));
-            acceleration_edge->setVertex(2,teb_.TimeDiffVertex( teb_.sizeTimeDiffs()-1 ));
-            acceleration_edge->setGoalVelocity(vel_goal_.second);
-            acceleration_edge->setInformation(information);
-            acceleration_edge->setTebConfig(*cfg_);
-            optimizer_->addEdge(acceleration_edge);
+            // check if an initial velocity should be taken into accound
+            if (vel_start_.first)
+            {
+                EdgeAccelerationHolonomicStart* acceleration_edge = new EdgeAccelerationHolonomicStart;
+                acceleration_edge->setVertex(0,teb_.PoseVertex(0));
+                acceleration_edge->setVertex(1,teb_.PoseVertex(1));
+                acceleration_edge->setVertex(2,teb_.TimeDiffVertex(0));
+                acceleration_edge->setInitialVelocity(vel_start_.second);
+                acceleration_edge->setInformation(information);
+                acceleration_edge->setTebConfig(*cfg_);
+                optimizer_->addEdge(acceleration_edge);
+            }
+
+            // now add the usual acceleration edge for each tuple of three teb poses
+            for (int i=0; i < n - 2; ++i)
+            {
+                EdgeAccelerationHolonomic* acceleration_edge = new EdgeAccelerationHolonomic;
+                acceleration_edge->setVertex(0,teb_.PoseVertex(i));
+                acceleration_edge->setVertex(1,teb_.PoseVertex(i+1));
+                acceleration_edge->setVertex(2,teb_.PoseVertex(i+2));
+                acceleration_edge->setVertex(3,teb_.TimeDiffVertex(i));
+                acceleration_edge->setVertex(4,teb_.TimeDiffVertex(i+1));
+                acceleration_edge->setInformation(information);
+                acceleration_edge->setTebConfig(*cfg_);
+                optimizer_->addEdge(acceleration_edge);
+            }
+
+            // check if a goal velocity should be taken into accound
+            if (vel_goal_.first)
+            {
+                EdgeAccelerationHolonomicGoal* acceleration_edge = new EdgeAccelerationHolonomicGoal;
+                acceleration_edge->setVertex(0,teb_.PoseVertex(n-2));
+                acceleration_edge->setVertex(1,teb_.PoseVertex(n-1));
+                acceleration_edge->setVertex(2,teb_.TimeDiffVertex( teb_.sizeTimeDiffs()-1 ));
+                acceleration_edge->setGoalVelocity(vel_goal_.second);
+                acceleration_edge->setInformation(information);
+                acceleration_edge->setTebConfig(*cfg_);
+                optimizer_->addEdge(acceleration_edge);
+            }
         }
     }
-    else // holonomic robot
+
+
+    void TebOptimalPlanner::AddEdgesKinematicsDiffDrive()
     {
-        Eigen::Matrix<double,3,3> information;
-        information.fill(0);
-        information(0,0) = cfg_->optim.weight_acc_lim_x;
-        information(1,1) = cfg_->optim.weight_acc_lim_y;
-        information(2,2) = cfg_->optim.weight_acc_lim_theta;
+        if (cfg_->optim.weight_kinematics_nh==0 && cfg_->optim.weight_kinematics_forward_drive==0)
+            return; // if weight equals zero skip adding edges!
 
-        // check if an initial velocity should be taken into accound
-        if (vel_start_.first)
-        {
-            EdgeAccelerationHolonomicStart* acceleration_edge = new EdgeAccelerationHolonomicStart;
-            acceleration_edge->setVertex(0,teb_.PoseVertex(0));
-            acceleration_edge->setVertex(1,teb_.PoseVertex(1));
-            acceleration_edge->setVertex(2,teb_.TimeDiffVertex(0));
-            acceleration_edge->setInitialVelocity(vel_start_.second);
-            acceleration_edge->setInformation(information);
-            acceleration_edge->setTebConfig(*cfg_);
-            optimizer_->addEdge(acceleration_edge);
-        }
+        // create edge for satisfiying kinematic constraints
+        Eigen::Matrix<double,2,2> information_kinematics;
+        information_kinematics.fill(0.0);
+        information_kinematics(0, 0) = cfg_->optim.weight_kinematics_nh;
+        information_kinematics(1, 1) = cfg_->optim.weight_kinematics_forward_drive;
 
-        // now add the usual acceleration edge for each tuple of three teb poses
-        for (int i=0; i < n - 2; ++i)
+        for (int i=0; i < teb_.sizePoses()-1; i++) // ignore twiced start only
         {
-            EdgeAccelerationHolonomic* acceleration_edge = new EdgeAccelerationHolonomic;
-            acceleration_edge->setVertex(0,teb_.PoseVertex(i));
-            acceleration_edge->setVertex(1,teb_.PoseVertex(i+1));
-            acceleration_edge->setVertex(2,teb_.PoseVertex(i+2));
-            acceleration_edge->setVertex(3,teb_.TimeDiffVertex(i));
-            acceleration_edge->setVertex(4,teb_.TimeDiffVertex(i+1));
-            acceleration_edge->setInformation(information);
-            acceleration_edge->setTebConfig(*cfg_);
-            optimizer_->addEdge(acceleration_edge);
-        }
-
-        // check if a goal velocity should be taken into accound
-        if (vel_goal_.first)
-        {
-            EdgeAccelerationHolonomicGoal* acceleration_edge = new EdgeAccelerationHolonomicGoal;
-            acceleration_edge->setVertex(0,teb_.PoseVertex(n-2));
-            acceleration_edge->setVertex(1,teb_.PoseVertex(n-1));
-            acceleration_edge->setVertex(2,teb_.TimeDiffVertex( teb_.sizeTimeDiffs()-1 ));
-            acceleration_edge->setGoalVelocity(vel_goal_.second);
-            acceleration_edge->setInformation(information);
-            acceleration_edge->setTebConfig(*cfg_);
-            optimizer_->addEdge(acceleration_edge);
+            EdgeKinematicsDiffDrive* kinematics_edge = new EdgeKinematicsDiffDrive;
+            kinematics_edge->setVertex(0,teb_.PoseVertex(i));
+            kinematics_edge->setVertex(1,teb_.PoseVertex(i+1));
+            kinematics_edge->setInformation(information_kinematics);
+            kinematics_edge->setTebConfig(*cfg_);
+            optimizer_->addEdge(kinematics_edge);
         }
     }
-}
-
-
-void TebOptimalPlanner::AddEdgesKinematicsDiffDrive()
-{
-    if (cfg_->optim.weight_kinematics_nh==0 && cfg_->optim.weight_kinematics_forward_drive==0)
-        return; // if weight equals zero skip adding edges!
-
-    // create edge for satisfiying kinematic constraints
-    Eigen::Matrix<double,2,2> information_kinematics;
-    information_kinematics.fill(0.0);
-    information_kinematics(0, 0) = cfg_->optim.weight_kinematics_nh;
-    information_kinematics(1, 1) = cfg_->optim.weight_kinematics_forward_drive;
-
-    for (int i=0; i < teb_.sizePoses()-1; i++) // ignore twiced start only
-    {
-        EdgeKinematicsDiffDrive* kinematics_edge = new EdgeKinematicsDiffDrive;
-        kinematics_edge->setVertex(0,teb_.PoseVertex(i));
-        kinematics_edge->setVertex(1,teb_.PoseVertex(i+1));
-        kinematics_edge->setInformation(information_kinematics);
-        kinematics_edge->setTebConfig(*cfg_);
-        optimizer_->addEdge(kinematics_edge);
-    }
-}

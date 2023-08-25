@@ -967,5 +967,143 @@ public:
 };
 
 
+/**
+ * @class EdgeObstacle
+ * @brief Edge defining the cost function for keeping a minimum distance from obstacles.
+ * 
+ * The edge depends on a single vertex \f$ \mathbf{s}_i \f$ and minimizes: \n
+ * \f$ \min \textrm{penaltyBelow}( dist2point ) \cdot weight \f$. \n
+ * \e dist2point denotes the minimum distance to the point obstacle. \n
+ * \e weight can be set using setInformation(). \n
+ * \e penaltyBelow denotes the penalty function, see penaltyBoundFromBelow() \n
+ * @see TebOptimalPlanner::AddEdgesObstacles, TebOptimalPlanner::EdgeInflatedObstacle
+ * @remarks Do not forget to call setTebConfig() and setObstacle()
+ */     
+// class EdgeObstacle : public BaseTebUnaryEdge<1, const Obstacle*, VertexPose>
+// {
+// public:
+    
+//   /**
+//    * @brief Construct edge.
+//    */    
+//   EdgeObstacle() 
+//   {
+//     _measurement = NULL;
+//   }
+ 
+//   /**
+//    * @brief Actual cost function
+//    */    
+//   void computeError()
+//   {
+//     if(cfg_ && _measurement) printf("You must call setTebConfig() and setObstacle() on EdgeObstacle()");
+//     const VertexPose* bandpt = static_cast<const VertexPose*>(_vertices[0]);
 
-#endif //FREENAV_TEB_EDGES_H
+//     double dist;// = cfg_->robot_model->calculateDistance(bandpt->pose(), _measurement);
+
+//     // Original obstacle cost.
+//     _error[0] = penaltyBoundFromBelow(dist, cfg_->obstacles.min_obstacle_dist, cfg_->optim.penalty_epsilon);
+
+//     if (cfg_->optim.obstacle_cost_exponent != 1.0 && cfg_->obstacles.min_obstacle_dist > 0.0)
+//     {
+//       // Optional non-linear cost. Note the max cost (before weighting) is
+//       // the same as the straight line version and that all other costs are
+//       // below the straight line (for positive exponent), so it may be
+//       // necessary to increase weight_obstacle and/or the inflation_weight
+//       // when using larger exponents.
+//       _error[0] = cfg_->obstacles.min_obstacle_dist * std::pow(_error[0] / cfg_->obstacles.min_obstacle_dist, cfg_->optim.obstacle_cost_exponent);
+//     }
+
+//     if(std::isfinite(_error[0])) printf("EdgeObstacle::computeError() _error[0]=%f\n",_error[0]);
+//   }
+ 
+//   /**
+//    * @brief Set pointer to associated obstacle for the underlying cost function 
+//    * @param obstacle 2D position vector containing the position of the obstacle
+//    */ 
+//   void setObstacle(const Obstacle* obstacle)
+//   {
+//     _measurement = obstacle;
+//   }
+    
+//   /**
+//    * @brief Set all parameters at once
+//    * @param cfg TebConfig class
+//    * @param obstacle 2D position vector containing the position of the obstacle
+//    */ 
+//   void setParameters(const TebConfig& cfg, const Obstacle* obstacle)
+//   {
+//     cfg_ = &cfg;
+//     _measurement = obstacle;
+//   }
+  
+//   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+// };
+
+// dist to obstacle boundary, in obstacle, negative, out of obstacle, positive 
+typedef std::function<double(const VertexPose&)> DIST_TO_OBSTACLE_FUNC;
+
+class EdgeObstacleGridMap : public BaseTebUnaryEdge<1, double, VertexPose>
+{
+public:
+
+    /**
+     * @brief Construct edge.
+     */
+    EdgeObstacleGridMap()
+    {
+        _measurement = NULL;
+    }
+
+    /**
+     * @brief Actual cost function
+     */
+    void computeError()
+    {
+        if( !(cfg_ && _measurement) )
+            std::cerr << "You must call setTebConfig(), setViaPoint() on EdgeObstacleGridMap()" << std::endl;
+
+        const VertexPose* bandpt = static_cast<const VertexPose*>(_vertices[0]);
+
+        double dist = dist_func_(*bandpt);
+
+        // Original obstacle cost.
+        _error[0] = penaltyBoundFromBelow(dist, cfg_->obstacles.min_obstacle_dist, cfg_->optim.penalty_epsilon);
+
+        if (cfg_->optim.obstacle_cost_exponent != 1.0 && cfg_->obstacles.min_obstacle_dist > 0.0)
+        {
+            // Optional non-linear cost. Note the max cost (before weighting) is
+            // the same as the straight line version and that all other costs are
+            // below the straight line (for positive exponent), so it may be
+            // necessary to increase weight_obstacle and/or the inflation_weight
+            // when using larger exponents.
+            _error[0] = cfg_->obstacles.min_obstacle_dist * std::pow(_error[0] / cfg_->obstacles.min_obstacle_dist, cfg_->optim.obstacle_cost_exponent);
+        }
+
+        if(std::isfinite(_error[0])) printf("EdgeObstacleGridMap::computeError() _error[0]=%f\n",_error[0]);
+    }
+
+    /**
+     * @brief Set all parameters at once
+     * @param cfg TebConfig class
+     * @param via_point 2D position vector containing the position of the via point
+     */
+    void setParameters(const TebConfig& cfg, const DIST_TO_OBSTACLE_FUNC& dist_func)
+    {
+        cfg_ = &cfg;
+        dist_func_ = dist_func;
+    }
+
+    DIST_TO_OBSTACLE_FUNC dist_func_;
+
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+};
+
+
+
+
+
+#endif
+

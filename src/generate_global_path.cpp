@@ -5,6 +5,7 @@
 #include "canvas.h"
 #include "thread_pool.h"
 #include "common.h"
+#include "picture_map_loader.h"
 
 using namespace freeNav;
 
@@ -13,12 +14,12 @@ Pointi<2> click_point;
 std::vector<Eigen::Vector3d> smoothed_path;
 ThreadPool planning_thread;
 
-Canvas canvas("Set Global Path", 1000, 700, 200);
 double current_time = 0;
 
 Pathd<2> error_path = {{-0.995, -0.02}, {-0.515, -0.24}, {0.155, -0.2}, 
                       {0.825, 0.03}, {1.7, 0.375}, {2.235, -0.46}, 
                       {1.905, -1.165}, {1.08, -1.48}, {0.365, -1.485}};
+
 class GlobalPathPublisher : public rclcpp::Node
 {
   public:
@@ -59,36 +60,92 @@ class GlobalPathPublisher : public rclcpp::Node
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr publisher_;
 
 };
+class GridMapPublisher : public rclcpp::Node
+{
+  public:
+    GridMapPublisher()
+    : Node("GridMapPublisher")
+    {
+      publisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("/map", 10);
+    }
+ 
+    void publishMap(IS_OCCUPIED_FUNC<2> is_occupied, DimensionLength* dim)
+    {
+      nav_msgs::msg::OccupancyGrid map_msg;
+      map_msg.header.frame_id = "/map";
+      map_msg.header.stamp = this->get_clock()->now();
+
+      map_msg.info.map_load_time = this->get_clock()->now();
+      map_msg.info.width = dim[0];
+      map_msg.info.height = dim[1];
+      map_msg.info.resolution = 0.05;
+
+      map_msg.data;
+
+      publisher_->publish(map_msg);
+    }
+
+  private:
+
+    rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr publisher_;
+
+};
+
 // 指定编译以及线程数量
 // colcon build --packages-select teb_planner --parallel-workers 4
+
+Canvas* canvas;
+
+auto is_grid_occupied = [](const cv::Vec3b& color) -> bool {
+    if (color[0] <= 200 || color[1] <= 200 || color[2] <= 200) return true;
+    return false;
+};
+
+// load grid map and publish 
+std::string map_path = "/home/yaozhuo/code/teb_local_planner/map/indoor_map.png";
+
+PictureLoader loader(map_path, is_grid_occupied);
+auto dimension = loader.getDimensionInfo();
+
+auto is_occupied = [](const Pointi<2> & pt) -> bool { return loader.isOccupied(pt); };
+
+auto set_occupied = [](const Pointi<2> & pt) { loader.setOccupied(pt); };
+
+IS_OCCUPIED_FUNC<2> is_occupied_func = is_occupied;
+
+SET_OCCUPIED_FUNC<2> set_occupied_func = set_occupied;
 
 int main(int argc, char * argv[]) {
 
     rclcpp::init(argc, argv);
+
+    canvas = new Canvas("Set Global Path", dimension[0], dimension[1], 40); 
+
     auto callback = [](int event, int x, int y, int flags, void *) {
         if(event == CV_EVENT_LBUTTONDOWN) {
             click_point[0] = x;
             click_point[1] = y;
-            pathd.push_back(canvas.transformToWorld(click_point));
+            pathd.push_back(canvas->transformToWorld(click_point));
         } else if (event == CV_EVENT_RBUTTONDOWN) {
             pathd.clear();
             printf("clear all paths");
         }
     };
 
-    canvas.setMouseCallBack(callback);
+    canvas->setMouseCallBack(callback);
 
     GlobalPathPublisher global_path_pub;
 
     while(rclcpp::ok()) {
-        canvas.resetCanvas();
-        canvas.drawAxis(8., 6.);
+        canvas->resetCanvas();
+        canvas->drawGridMap(dimension, is_occupied_func);
+        canvas->drawAxis(3.5, 3.5);
 
         if(!pathd.empty()) {
-            canvas.drawPathf(pathd, 2);
-            canvas.drawPointfs(pathd, .03, 2);
+            canvas->drawPathf(pathd, 2);
+            canvas->drawPointfs(pathd, .03, 2);
         }
-        char key = canvas.show(33);
+        char key = canvas->show(33);
         // 32 = space
         if(key == 32) {
             if(planning_thread.pool_[0].joinable()) {
@@ -100,6 +157,7 @@ int main(int argc, char * argv[]) {
             }
         }
     }
+    delete canvas;
     rclcpp::shutdown();
     return 0;
 }

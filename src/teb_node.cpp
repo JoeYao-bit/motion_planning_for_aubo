@@ -406,13 +406,15 @@ int main(int argc, char * argv[]) {
               pruned_path_discrete.back().theta() = pruned_path.back().theta();
               teb_input_pub.publishTraj(pruned_path_discrete);
 
+              // TODO: set dist_func via local map
+              DIST_TO_OBSTACLE_FUNC dist_func;
               //if(first_new_path) 
               {
                 via_points.clear();
                 for(const auto& ppd  : pruned_path_discrete) {
                   via_points.push_back(ppd.position());
                 }
-                teb_planner.initialize(config, robot_model, &via_points);
+                teb_planner.initialize(config, dist_func, robot_model, &via_points);
                 first_new_path = false;
               }
 

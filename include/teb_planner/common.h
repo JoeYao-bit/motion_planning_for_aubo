@@ -10,6 +10,9 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose_with_covariance.hpp"
+#include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/point.hpp"
+
 
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2/utils.h"

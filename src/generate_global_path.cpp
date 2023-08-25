@@ -69,7 +69,7 @@ class GridMapPublisher : public rclcpp::Node
       publisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("/map", 10);
     }
  
-    void publishMap(IS_OCCUPIED_FUNC<2> is_occupied, DimensionLength* dim)
+    void publishMap(const IS_OCCUPIED_FUNC<2>& is_occupied, DimensionLength* dim)
     {
       nav_msgs::msg::OccupancyGrid map_msg;
       map_msg.header.frame_id = "/map";
@@ -80,8 +80,21 @@ class GridMapPublisher : public rclcpp::Node
       map_msg.info.height = dim[1];
       map_msg.info.resolution = 0.05;
 
-      map_msg.data;
-
+      geometry_msgs::msg::Pose origin_pose;
+      origin_pose.position.x = -(.05*dim[0])/2.;
+      origin_pose.position.y = -(.05*dim[1])/2.;
+      tf2::Quaternion quat; quat.setRPY(0, 0, 0);
+      origin_pose.orientation = tf2::toMsg(quat);
+      map_msg.info.origin = origin_pose;
+      
+      int total_index = dim[0] * dim[1];
+      map_msg.data.resize(total_index, 0);
+      for(int x=0; x<dim[0]; x++) {
+        for(int y=0; y<dim[1]; y++) {
+          Pointi<2> pt({x, y});
+          map_msg.data[x + (dim[1] - 1 - y) * dim[0]] = is_occupied(pt) ? 100 : 0; 
+        }
+      }
       publisher_->publish(map_msg);
     }
 
@@ -119,7 +132,7 @@ int main(int argc, char * argv[]) {
 
     rclcpp::init(argc, argv);
 
-    canvas = new Canvas("Set Global Path", dimension[0], dimension[1], 40); 
+    canvas = new Canvas("Set Global Path", dimension[0], dimension[1], 20, 1); 
 
     auto callback = [](int event, int x, int y, int flags, void *) {
         if(event == CV_EVENT_LBUTTONDOWN) {
@@ -135,27 +148,34 @@ int main(int argc, char * argv[]) {
     canvas->setMouseCallBack(callback);
 
     GlobalPathPublisher global_path_pub;
-
+    GridMapPublisher map_pub;
+    map_pub.publishMap(is_occupied, dimension);
+    int count = 0;
     while(rclcpp::ok()) {
-        canvas->resetCanvas();
-        canvas->drawGridMap(dimension, is_occupied_func);
-        canvas->drawAxis(3.5, 3.5);
+      count ++;
+      count = count % 50; // pub map per second
+      if(count == 0) {
+        map_pub.publishMap(is_occupied, dimension);
+      }
+      canvas->resetCanvas();
+      canvas->drawGridMap(dimension, is_occupied_func);
+      canvas->drawAxis(3.5, 3.5);
 
-        if(!pathd.empty()) {
-            canvas->drawPathf(pathd, 2);
-            canvas->drawPointfs(pathd, .03, 2);
-        }
-        char key = canvas->show(33);
-        // 32 = space
-        if(key == 32) {
-            if(planning_thread.pool_[0].joinable()) {
-                planning_thread.Schedule([&] {
-                    // publish global path to ros2
-                    //global_path_pub.publishPath(error_path);
-                    global_path_pub.publishPath(pathd);
-                });
-            }
-        }
+      if(!pathd.empty()) {
+          canvas->drawPathf(pathd, 2);
+          canvas->drawPointfs(pathd, .03, 2);
+      }
+      char key = canvas->show(100);
+      // 32 = space
+      if(key == 32) {
+          if(planning_thread.pool_[0].joinable()) {
+              planning_thread.Schedule([&] {
+                  // publish global path to ros2
+                  //global_path_pub.publishPath(error_path);
+                  global_path_pub.publishPath(pathd);
+              });
+          }
+      }
     }
     delete canvas;
     rclcpp::shutdown();

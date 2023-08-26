@@ -6,6 +6,7 @@
 #include "thread_pool.h"
 #include "common.h"
 #include "picture_map_loader.h"
+#include "distance_map_update.h"
 
 using namespace freeNav;
 
@@ -147,10 +148,14 @@ int main(int argc, char * argv[]) {
 
     canvas->setMouseCallBack(callback);
 
+    DistanceMapUpdaterPtr<2> distance_map = std::make_shared<DistanceMapUpdater<2> >(is_occupied, dimension);
+
     GlobalPathPublisher global_path_pub;
     GridMapPublisher map_pub;
     map_pub.publishMap(is_occupied, dimension);
+
     int count = 0;
+    bool draw_dist_map = false;
     while(rclcpp::ok()) {
       count ++;
       count = count % 10; // pub map per second
@@ -160,6 +165,13 @@ int main(int argc, char * argv[]) {
       canvas->resetCanvas();
       canvas->drawGridMap(dimension, is_occupied_func);
       canvas->drawAxis(3.5, 3.5);
+
+      if(draw_dist_map) {
+            canvas->draw_DistMap(distance_map->dimension_info_,
+                                 distance_map->dist_map_,
+                                 distance_map->max_dist_,
+                                 distance_map->min_dist_);
+      }
 
       if(!pathd.empty()) {
           canvas->drawPathf(pathd, 2);
@@ -175,6 +187,8 @@ int main(int argc, char * argv[]) {
                   global_path_pub.publishPath(pathd);
               });
           }
+      } else if(key == 'f') {
+        draw_dist_map = !draw_dist_map;
       }
     }
     delete canvas;

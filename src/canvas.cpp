@@ -89,8 +89,8 @@ namespace freeNav {
 
     Pointd<2> Canvas::transformToWorld(const Pointi<2> &pt) {
         Pointd<2> v;
-        v[0] = (pt[0] - center_[0]) / (resolution_ * zoom_ratio_);
-        v[1] = -(pt[1] - center_[1]) / (resolution_ * zoom_ratio_);
+        v[0] = (pt[0] - center_[0]) / resolution_;
+        v[1] = -(pt[1] - center_[1]) / resolution_;
         return v;
     }
 
@@ -289,18 +289,16 @@ namespace freeNav {
         //drawArrowInt(arrow_tail[0], arrow_tail[1], arrow_tip[0], arrow_tip[1], 2, center_offset, color);
     }
 
-    void Canvas::draw_DistMap(freeNav::DimensionLength *dimension, const std::vector<PathLen>& dist_map, int max_dist) {
+    void Canvas::draw_DistMap(freeNav::DimensionLength *dimension, const std::vector<PathLen>& dist_map, double max_dist, double min_dist) {
 
         for(int id=0; id<dist_map.size(); id++) {
             Pointi<2> pt = IdToPointi<2>(id, dimension);
             if(dist_map[id] == MAX<PathLen>) continue;
-            //drawTextInt(pt[0], pt[1], std::to_string((int)dist_map[id]).c_str(), cv::Vec3b(0,255,0));
-            if(max_dist != 100) {
-                if(fabs(dist_map[id]) < 0.2*M_PI) { continue; }
-                drawGrid(pt[0], pt[1], cv::Vec3b(255,0,255));
-                //drawGrid(pt[0], pt[1], cv::Vec3b(255,255*dist_map[id]/max_dist,255));
+            if(dist_map[id] > 0) {
+                drawGrid(pt[0], pt[1], cv::Vec3b(255,200*dist_map[id]/max_dist + 50,255));
             } else {
-                drawGrid(pt[0], pt[1], cv::Vec3b(255,255*dist_map[id]/100 + 50,255));
+                double color = 200*dist_map[id]/(-max_dist) + 50;
+                drawGrid(pt[0], pt[1], cv::Vec3b(color, color, color));
             }
         }
 

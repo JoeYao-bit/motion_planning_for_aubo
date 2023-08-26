@@ -538,6 +538,11 @@ protected:
     void AddEdgesVelocityObstacleRatio();
 
 
+    /**
+     * @brief Add all edges (local cost function) for keep distance to obstacle grid map  
+     * @see buildGraph
+     * @see optimizeGraph
+     */
     void AddEdgesObstaclesGridMap(double weight_multiplier);
 
     //@}

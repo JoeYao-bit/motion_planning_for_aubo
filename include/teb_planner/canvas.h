@@ -105,7 +105,7 @@ namespace freeNav {
         void draw_ENLSVG_Extent(const std::vector<int> &extents, freeNav::DimensionLength dimen[2], double scale = .7);
 
 
-        void draw_DistMap(freeNav::DimensionLength *dimension, const std::vector<PathLen>& dist_map, int max_dist = 100);
+        void draw_DistMap(freeNav::DimensionLength *dimension, const std::vector<PathLen>& dist_map, double max_dist = 100, double min_dist = 100);
 
         void draw_Block(const freeNav::Pointi<2>& min_pt, const freeNav::Pointi<2>& max_pt);
 
@@ -122,8 +122,8 @@ namespace freeNav {
         template <typename T>
         Pointi<2> transformToPixel(T x, T y) {
             Pointi<2> v;
-            v[0] = center_[0] + x * resolution_ * zoom_ratio_;
-            v[1] = center_[1] - y * resolution_ * zoom_ratio_;
+            v[0] = center_[0] + x * resolution_;
+            v[1] = center_[1] - y * resolution_;
             return v;
         }
         void setMouseCallBack(void (*func)(int, int, int, int, void *));

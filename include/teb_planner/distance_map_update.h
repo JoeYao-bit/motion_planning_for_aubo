@@ -29,7 +29,18 @@ namespace freeNav {
             waveFront();
         }
 
-    //private:
+        bool getClosestDistance(const Pointi<N>& pt, PathLen& dist, Pointi<N>& close_pt) {
+            if(isOutOfBoundary(pt, dimension_info_)) {
+                std::cout << "DistanceMapUpdater::" << __FUNCTION__ << " pt " << pt << " out of boundary " << std::endl;
+                return false;
+            }
+            Id id = PointiToId(pt, dimension_info_);
+            dist = dist_map_[id];
+            close_pt = closet_pt_map_[id];
+            return true;
+        }
+
+    private:
 
         virtual bool isAllExpansionStop(const std::vector<Pointis<N> > & all_direction_grids) {
             for(const auto & each_direction : all_direction_grids) {
@@ -40,7 +51,7 @@ namespace freeNav {
             return true;
         }
 
-        void detectSurfaceGrids() {
+        virtual void detectSurfaceGrids() {
             surface_nodes_.clear();
             Id total_index = getTotalIndexOfSpace<N>(dimension_info_);
             nearby_offsets_ = GetNeightborOffsetGrids<N>();
@@ -84,7 +95,7 @@ namespace freeNav {
                     }
                 }
             }
-            std::cout << " max_dist_ " << max_dist_ << std::endl;
+            std::cout << " max_dist_ " << max_dist_ << " / min_dist_" << min_dist_ << std::endl;
         }
 
         virtual Pointis<N> expandCurrentPoint(const Pointi<N>& current_pt, int dim) {
@@ -135,6 +146,8 @@ namespace freeNav {
             return next_expansion;
         }
 
+    public:
+
         DimensionLength* dimension_info_;
 
         IS_OCCUPIED_FUNC<N> is_occupied_;
@@ -145,9 +158,6 @@ namespace freeNav {
 
         // negative for in obstacle zone, positive for in free zone
         std::vector<PathLen> dist_map_;
-
-        // negative for in obstacle zone, positive for in free zone
-        std::vector<PathLen> dist_map_in_obstacle_;
 
         std::vector<Pointi<N> > closet_pt_map_;
 

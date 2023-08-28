@@ -68,6 +68,9 @@ private:
     double yaw = tf2::getYaw(msg->pose.pose.orientation);
     RCLCPP_INFO(this->get_logger(), "Receive initial pose(x, y, yaw): %f, %f, %f", position.x, position.y, yaw);
     pose_with_covariance = msg->pose;
+    // only for test
+    pose_with_covariance.pose.position.x = -1.81;
+    pose_with_covariance.pose.position.y =  0.53;
   }
 
   void cmd_vel_topic_callback(const geometry_msgs::msg::Twist::SharedPtr msg) const

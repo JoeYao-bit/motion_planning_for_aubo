@@ -234,7 +234,7 @@ public:
 
         // Obstacles
 
-        obstacles.min_obstacle_dist = 0.5;
+        obstacles.min_obstacle_dist = 0.2;
         obstacles.inflation_dist = 0.6;
         obstacles.dynamic_obstacle_inflation_dist = 0.6;
         obstacles.include_dynamic_obstacles = true;

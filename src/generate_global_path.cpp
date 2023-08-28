@@ -17,9 +17,7 @@ ThreadPool planning_thread;
 
 double current_time = 0;
 
-Pathd<2> error_path = {{-0.995, -0.02}, {-0.515, -0.24}, {0.155, -0.2}, 
-                      {0.825, 0.03}, {1.7, 0.375}, {2.235, -0.46}, 
-                      {1.905, -1.165}, {1.08, -1.48}, {0.365, -1.485}};
+Pathd<2> error_path = {{-1.81, 0.53}, {-0.94, 0.51}, {0.26, -0.38}, {1.33, -0.31}};
 
 class GlobalPathPublisher : public rclcpp::Node
 {
@@ -79,11 +77,11 @@ class GridMapPublisher : public rclcpp::Node
       map_msg.info.map_load_time = this->get_clock()->now();
       map_msg.info.width = dim[0];
       map_msg.info.height = dim[1];
-      map_msg.info.resolution = 0.05;
+      map_msg.info.resolution = 1/pixe_to_map_ratio;
 
       geometry_msgs::msg::Pose origin_pose;
-      origin_pose.position.x = -(.05*dim[0])/2.;
-      origin_pose.position.y = -(.05*dim[1])/2.;
+      origin_pose.position.x = -(dim[0]/pixe_to_map_ratio)/2.;
+      origin_pose.position.y = -(dim[1]/pixe_to_map_ratio)/2.;
       tf2::Quaternion quat; quat.setRPY(0, 0, 0);
       origin_pose.orientation = tf2::toMsg(quat);
       map_msg.info.origin = origin_pose;
@@ -133,7 +131,7 @@ int main(int argc, char * argv[]) {
 
     rclcpp::init(argc, argv);
 
-    canvas = new Canvas("Set Global Path", dimension[0], dimension[1], 20, 3); 
+    canvas = new Canvas("Set Global Path", dimension[0], dimension[1], pixe_to_map_ratio, 2); 
 
     auto callback = [](int event, int x, int y, int flags, void *) {
         if(event == CV_EVENT_LBUTTONDOWN) {
@@ -185,8 +183,8 @@ int main(int argc, char * argv[]) {
           if(planning_thread.pool_[0].joinable()) {
               planning_thread.Schedule([&] {
                   // publish global path to ros2
-                  //global_path_pub.publishPath(error_path);
-                  global_path_pub.publishPath(pathd);
+                  global_path_pub.publishPath(error_path);
+                  //global_path_pub.publishPath(pathd);
               });
           }
       } else if(key == 'f') {

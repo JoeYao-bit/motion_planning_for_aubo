@@ -6,6 +6,7 @@
 #include "point.h"
 #include "thread_pool.h"
 #include "path_smooth.h"
+#include "distance_map_update.h"
 
 #include "rclcpp/rclcpp.hpp"
 
@@ -30,8 +31,12 @@
 #include "nav_msgs/msg/path.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
 
-const double control_frequency = .1;
 using namespace freeNav;
+
+const double control_frequency = .1;
+
+const double pixe_to_map_ratio = 100;
+
 // converter of map
 class MapConverter {
 public:
@@ -57,7 +62,7 @@ public:
    }
 
    // left down corner is map origin, x, y, theta is origin's pose 
-  Pointd<2> pixelToWorld(const Pointi<2>& pt) {
+  Pointd<2> transformToWorld(const Pointi<2>& pt) {
     Pointd<2> retv;
     const geometry_msgs::msg::Point& origin = map_msg_.info.origin.position;
     const double& theta = tf2::getYaw(map_msg_.info.origin.orientation);
@@ -67,7 +72,7 @@ public:
     return retv;
   }
 
-  Pointi<2> worldToPixel(const Pointd<2>& ptd) {
+  Pointi<2> transformToPixel(const Pointd<2>& ptd) {
     Pointi<2> retv;
     const geometry_msgs::msg::Point& origin = map_msg_.info.origin.position;
     const double& theta = tf2::getYaw(map_msg_.info.origin.orientation);
@@ -86,5 +91,7 @@ public:
   nav_msgs::msg::OccupancyGrid map_msg_;
 
 };
+
+Point2dContainer transformedFrom(const Point2dContainer& foot_print, const PoseSE2& global_pose);
 
 #endif

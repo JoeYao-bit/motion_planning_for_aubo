@@ -248,7 +248,7 @@
         AddEdgesKinematicsDiffDrive();
 
         /* yz: avoid collide with obstaccle in grid map */
-       AddEdgesObstaclesGridMap(cfg_->optim.weight_adapt_factor);
+        AddEdgesObstaclesGridMap(cfg_->optim.weight_adapt_factor);
 
         return true;
     }

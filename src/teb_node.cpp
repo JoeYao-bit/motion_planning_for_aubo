@@ -21,6 +21,22 @@ ViaPointContainer via_points;
 
 std::vector<PoseSE2> result_traj; // poses of trajectory
 std::vector<double> time_diffs; // time diff between poses
+
+Point2dContainer robot_shape;
+
+DistanceMapUpdaterPtr<2> distance_map;
+
+MapConverter map_converter;
+
+auto is_occupied = [](const Pointi<2> & pt) -> bool { 
+  if(isOutOfBoundary(pt, map_converter.dim_)) { return true; }
+  Id id = PointiToId(pt, map_converter.dim_);
+  if(id >= map_converter.occupancy_grid.size()) { return true; }
+  return map_converter.occupancy_grid[id]; 
+};
+
+IS_OCCUPIED_FUNC<2> is_occupied_func = is_occupied;
+
 class TEBSubscriber : public rclcpp::Node
 {
 public:
@@ -307,21 +323,6 @@ private:
 
 };
 
-using namespace freeNav;
-
-
-
-MapConverter map_converter;
-
-auto is_occupied = [](const Pointi<2> & pt) -> bool { 
-  if(isOutOfBoundary(pt, map_converter.dim_)) { return true; }
-  Id id = PointiToId(pt, map_converter.dim_);
-  if(id >= map_converter.occupancy_grid.size()) { return true; }
-  return map_converter.occupancy_grid[id]; 
-};
-
-IS_OCCUPIED_FUNC<2> is_occupied_func = is_occupied;
-
 class GridMapSubscriber : public rclcpp::Node
 {
 public:
@@ -342,11 +343,71 @@ private:
     // update map
     RCLCPP_INFO(this->get_logger(), "receive occupancy grid map msg with size %i %i", map_msg.info.width, map_msg.info.height);
     map_converter.setWorldMap(map_msg);
+    distance_map = std::make_shared<DistanceMapUpdater<2> >(is_occupied, map_converter.dim_);
     RCLCPP_INFO(this->get_logger(), "finish set occupancy grid map");
   }
 
   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr subscription_;
 
+};
+
+DIST_TO_OBSTACLE_FUNC dist_func = [](const PoseSE2& pose, const PoseSE2& pose2) -> double {
+
+    Pointd<2> ptd1({pose.x(), pose.y()}), ptd2({pose2.x(), pose2.y()});
+    Pointi<2> pti1 = map_converter.transformToPixel(ptd1), pti2 = map_converter.transformToPixel(ptd2), closest_pt;
+    PathLen min_dist = MAX<PathLen>;
+    bool pass_occupied = false;
+    if(pti1 != pti2) {
+        //std::cout << " line pt " << pti1 << " / " << pti2 << std::endl;
+        Line<2> line(pti1, pti2);
+        for (int i = 0; i < line.step; i++) {
+            Pointi<2> temp_pt = line.GetPoint(i);
+            pass_occupied = false;
+            if(is_occupied(temp_pt)) {
+                //std::cout << " current polygon is occupied" << std::endl;
+                pass_occupied = true;
+            }
+            PathLen dist;
+            if (distance_map->getClosestDistance(temp_pt, dist, closest_pt)) {
+                Pointd<2> ptd = map_converter.transformToWorld(closest_pt);
+                // get point to line distance, in metric distance to allow sightly offset in global pose will cause offset in
+                //std::cout << " ptd, ptd1, ptd2 " << ptd << ptd1 << ptd2 << std::endl;
+                PathLen temp_dist = pointDistToLine(ptd, ptd1, ptd2) * (pass_occupied ? -1 : 1);
+                //std::cout << " temp dist " << temp_dist << std::endl;
+                //closest_ptds.push_back(ptd);
+                // update minimal dist
+                if (temp_dist < min_dist) { min_dist = temp_dist; }
+            } else {
+                std::cout << " out of boundary " << std::endl;
+                return 0;
+            }
+        }
+    } else
+        {
+        // project into one grid
+        Pointi<2> temp_pt = pti1;
+        pass_occupied = false;
+        if(is_occupied(temp_pt)) {
+            //std::cout << " current polygon is occupied" << std::endl;
+            pass_occupied = true;
+        }
+        //std::cout << " single pt " << pti1 << std::endl;
+        PathLen dist;
+        if (distance_map->getClosestDistance(temp_pt, dist, closest_pt)) {
+            Pointd<2> ptd = map_converter.transformToWorld(closest_pt);
+            // get point to line distance, in metric distance to allow sightly offset in global pose will cause offset in
+            //std::cout << " ptd, ptd1, ptd2 " << ptd << ptd1 << ptd2 << std::endl;
+            PathLen temp_dist = pointDistToLine(ptd, ptd1, ptd2) * (pass_occupied ? -1 : 1);
+            //std::cout << " temp dist " << temp_dist << std::endl;
+            //closest_ptds.push_back(ptd);
+            // update minimal dist
+            if (temp_dist < min_dist) { min_dist = temp_dist; }
+        } else {
+            std::cout << " out of boundary " << std::endl;
+            return 0;
+        }
+    }
+    return min_dist;// * (pass_occupied ? -1 : 1);
 };
 
 int main(int argc, char * argv[]) {
@@ -367,7 +428,6 @@ int main(int argc, char * argv[]) {
     rclcpp::WallRate loop_rate(1/control_frequency);
 
     /* set robot shape */
-    Point2dContainer robot_shape;
     robot_shape = {{.1, .05}, {.1, -.05}, {-.05, -.05}, {-.05, .05}};
     robot_model = boost::make_shared<PolygonRobotFootprint>(robot_shape);
 
@@ -451,8 +511,6 @@ int main(int argc, char * argv[]) {
               pruned_path_discrete.back().theta() = pruned_path.back().theta();
               teb_input_pub.publishTraj(pruned_path_discrete);
 
-              // set dist_func via local map
-              DIST_TO_OBSTACLE_FUNC dist_func;
               //if(first_new_path) 
               {
                 via_points.clear();

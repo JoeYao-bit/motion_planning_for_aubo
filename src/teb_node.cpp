@@ -406,7 +406,7 @@ int main(int argc, char * argv[]) {
               pruned_path_discrete.back().theta() = pruned_path.back().theta();
               teb_input_pub.publishTraj(pruned_path_discrete);
 
-              // TODO: set dist_func via local map
+              // set dist_func via local map
               DIST_TO_OBSTACLE_FUNC dist_func;
               //if(first_new_path) 
               {

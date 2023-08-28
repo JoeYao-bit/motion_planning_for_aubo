@@ -133,13 +133,15 @@ int main(int argc, char * argv[]) {
 
     rclcpp::init(argc, argv);
 
-    canvas = new Canvas("Set Global Path", dimension[0], dimension[1], 20, 1); 
+    canvas = new Canvas("Set Global Path", dimension[0], dimension[1], 20, 3); 
 
     auto callback = [](int event, int x, int y, int flags, void *) {
         if(event == CV_EVENT_LBUTTONDOWN) {
             click_point[0] = x;
             click_point[1] = y;
-            pathd.push_back(canvas->transformToWorld(click_point));
+            auto ptd_temp = canvas->transformToWorld(click_point);
+            //std::cout << "click_point" << click_point << " ptd_temp " << ptd_temp << std::endl;
+            pathd.push_back(ptd_temp);
         } else if (event == CV_EVENT_RBUTTONDOWN) {
             pathd.clear();
             printf("clear all paths");

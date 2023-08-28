@@ -253,12 +253,12 @@ public:
 
         // Optimization
 
-        optim.no_inner_iterations = 5;
-        optim.no_outer_iterations = 4;
+        optim.no_inner_iterations = 10;
+        optim.no_outer_iterations = 10;
         optim.optimization_activate = true;
         optim.optimization_verbose = false;
         optim.penalty_epsilon = 0.1;
-        optim.weight_max_vel_x = 2; //1
+        optim.weight_max_vel_x = 200; //1
         optim.weight_max_vel_y = 2;
         optim.weight_max_vel_theta = 1;
         optim.weight_acc_lim_x = 1;
@@ -274,7 +274,7 @@ public:
         optim.weight_dynamic_obstacle = 50;
         optim.weight_dynamic_obstacle_inflation = 0.1;
         optim.weight_velocity_obstacle_ratio = 0;
-        optim.weight_viapoint = 10; // Optimization weight for minimzing the distance to via-points
+        optim.weight_viapoint = 4; // Optimization weight for minimzing the distance to via-points
         optim.weight_prefer_rotdir = 50;
 
         optim.weight_adapt_factor = 2.0;

@@ -10,8 +10,8 @@ namespace freeNav {
 
     Canvas::Canvas(std::string name, int size_x, int size_y, double resolution, int zoom_ratio) :
             canvas_(size_y * zoom_ratio, size_x * zoom_ratio, CV_8UC3, cv::Scalar::all(255)), resolution_(resolution) {
-        center_[0] = size_x * zoom_ratio / 2;
-        center_[1] = size_y * zoom_ratio / 2;
+        center_[0] = size_x / 2;
+        center_[1] = size_y / 2;
         name_ = name;
         zoom_ratio_ = zoom_ratio;
         setColorTable();

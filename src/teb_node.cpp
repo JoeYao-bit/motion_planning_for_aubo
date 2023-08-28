@@ -8,6 +8,7 @@ bool new_path = false;
 bool first_new_path = false;
 
 nav_msgs::msg::Odometry odom_msg;
+nav_msgs::msg::OccupancyGrid map_msg;
 nav_msgs::msg::Path path_msg;
 std::vector<PoseSE2> global_path;
 
@@ -306,6 +307,48 @@ private:
 
 };
 
+using namespace freeNav;
+
+
+
+MapConverter map_converter;
+
+auto is_occupied = [](const Pointi<2> & pt) -> bool { 
+  if(isOutOfBoundary(pt, map_converter.dim_)) { return true; }
+  Id id = PointiToId(pt, map_converter.dim_);
+  if(id >= map_converter.occupancy_grid.size()) { return true; }
+  return map_converter.occupancy_grid[id]; 
+};
+
+IS_OCCUPIED_FUNC<2> is_occupied_func = is_occupied;
+
+class GridMapSubscriber : public rclcpp::Node
+{
+public:
+  GridMapSubscriber()
+  : Node("grid_map_subscriber")
+  {
+    // = 10 cause delay in msg receive
+    subscription_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
+      "/map", 1, std::bind(&GridMapSubscriber::topic_callback, this, _1));
+  }
+
+
+private:
+
+  void topic_callback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg) const
+  {
+    map_msg = nav_msgs::msg::OccupancyGrid(*msg);
+    // update map
+    RCLCPP_INFO(this->get_logger(), "receive occupancy grid map msg with size %i %i", map_msg.info.width, map_msg.info.height);
+    map_converter.setWorldMap(map_msg);
+    RCLCPP_INFO(this->get_logger(), "finish set occupancy grid map");
+  }
+
+  rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr subscription_;
+
+};
+
 int main(int argc, char * argv[]) {
     rclcpp::init(argc, argv);
 
@@ -314,6 +357,8 @@ int main(int argc, char * argv[]) {
 
     // subscribe odometry 
     auto odometry_sub = std::make_shared<OdometrySubscriber>();
+
+    auto grid_map_sub = std::make_shared<GridMapSubscriber>();
 
     // publish cmd vel 
     CmdVelPublisher cmd_vel_pub;
@@ -449,10 +494,9 @@ int main(int argc, char * argv[]) {
         //cmd_vel_pub.publishCmdVel(0.5, 0, 0);
         rclcpp::spin_some(teb_sub);
         rclcpp::spin_some(odometry_sub);
+        rclcpp::spin_some(grid_map_sub);
         loop_rate.sleep();
     }
-
-
     return 0;
 }
 

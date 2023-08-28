@@ -160,7 +160,7 @@ int main(int argc, char * argv[]) {
     bool draw_dist_map = false;
     while(rclcpp::ok()) {
       count ++;
-      count = count % 10; // pub map per second
+      count = count % 20; // pub map per second
       if(count == 0) {
         map_pub.publishMap(is_occupied, dimension);
       }

@@ -41,19 +41,19 @@ const double pixe_to_map_ratio = 100;
 class MapConverter {
 public:
    MapConverter() {
-      dim_ = new DimensionLength[3];
+      dim_ = new DimensionLength[2];
    }
 
    void setWorldMap(const nav_msgs::msg::OccupancyGrid& map_msg) {
       map_msg_ = map_msg;
       dim_[0] = map_msg.info.width;
       dim_[1] = map_msg.info.height;
-      occupancy_grid.resize(dim_[0]*dim_[1], true);
+      occupancy_grid.resize(dim_[0]*dim_[1], false);
       for(int x=0; x<dim_[0]; x++) {
           for(int y=0; y<dim_[1]; y++) {
             // 100 is threshold of whether grid is occupied, update if origin map updated
-            if(map_msg.data[x + y * dim_[0]] > 100) {
-              occupancy_grid[x + y * dim_[0]] = false;
+            if(map_msg.data[x + y * dim_[0]] >= 100) {
+              occupancy_grid[x + y * dim_[0]] = true;
             } 
           }
       }

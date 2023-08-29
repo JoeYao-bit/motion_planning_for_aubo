@@ -225,7 +225,7 @@ public:
 
         // GoalTolerance
 
-        goal_tolerance.xy_goal_tolerance = 0.1;
+        goal_tolerance.xy_goal_tolerance = 0.2;
         goal_tolerance.yaw_goal_tolerance = 0.2;
         goal_tolerance.free_goal_vel = false;
         goal_tolerance.trans_stopped_vel = 0.1;
@@ -234,7 +234,7 @@ public:
 
         // Obstacles
 
-        obstacles.min_obstacle_dist = 0.2;
+        obstacles.min_obstacle_dist = 0.1; // default = 0.5
         obstacles.inflation_dist = 0.6;
         obstacles.dynamic_obstacle_inflation_dist = 0.6;
         obstacles.include_dynamic_obstacles = true;
@@ -258,7 +258,7 @@ public:
         optim.optimization_activate = true;
         optim.optimization_verbose = false;
         optim.penalty_epsilon = 0.1;
-        optim.weight_max_vel_x = 200; //1
+        optim.weight_max_vel_x = 2; //1
         optim.weight_max_vel_y = 2;
         optim.weight_max_vel_theta = 1;
         optim.weight_acc_lim_x = 1;
@@ -274,7 +274,7 @@ public:
         optim.weight_dynamic_obstacle = 50;
         optim.weight_dynamic_obstacle_inflation = 0.1;
         optim.weight_velocity_obstacle_ratio = 0;
-        optim.weight_viapoint = 4; // Optimization weight for minimzing the distance to via-points
+        optim.weight_viapoint = 10; // Optimization weight for minimzing the distance to via-points
         optim.weight_prefer_rotdir = 50;
 
         optim.weight_adapt_factor = 2.0;

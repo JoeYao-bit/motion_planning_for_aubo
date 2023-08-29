@@ -248,7 +248,7 @@
         AddEdgesKinematicsDiffDrive();
 
         /* yz: avoid collide with obstaccle in grid map */
-        AddEdgesObstaclesGridMap(cfg_->optim.weight_adapt_factor);
+        //AddEdgesObstaclesGridMap(cfg_->optim.weight_adapt_factor);
 
         return true;
     }
@@ -347,35 +347,6 @@
                 optimizer_->addEdge(velocity_edge);
             }
 
-        }
-    }
-
-    void TebOptimalPlanner::AddEdgesObstaclesGridMap(double weight_multiplier)
-    {
-        if (cfg_->optim.weight_obstacle==0 || weight_multiplier==0)// || obstacles_==nullptr )
-            return; // if weight equals zero skip adding edges!
-
-        bool inflated = cfg_->obstacles.inflation_dist > cfg_->obstacles.min_obstacle_dist;
-
-        Eigen::Matrix<double,1,1> information;
-        information.fill(cfg_->optim.weight_obstacle * weight_multiplier);
-
-        auto create_edge = [ &information, this] (int index, int next_index, const DIST_TO_OBSTACLE_FUNC& dist_func) {
-
-            EdgeObstacleGridMap* dist_obst = new EdgeObstacleGridMap;
-            dist_obst->setVertex(0,teb_.PoseVertex(index));
-            dist_obst->setVertex(1,teb_.PoseVertex(next_index));
-            dist_obst->setInformation(information);
-            dist_obst->setParameters(*cfg_, dist_func);
-            optimizer_->addEdge(dist_obst);
-
-        };
-
-        // iterate all teb points, skipping the last and, if the EdgeVelocityObstacleRatio edges should not be created, the first one too
-        const int first_vertex = cfg_->optim.weight_velocity_obstacle_ratio == 0 ? 1 : 0;
-        for (int i = 1; i < teb_.sizePoses() - 1; ++i)
-        {
-            create_edge(i, i + 1 , dist_func_);
         }
     }
 
@@ -803,5 +774,35 @@
             kinematics_edge->setInformation(information_kinematics);
             kinematics_edge->setTebConfig(*cfg_);
             optimizer_->addEdge(kinematics_edge);
+        }
+    }
+
+
+    void TebOptimalPlanner::AddEdgesObstaclesGridMap(double weight_multiplier)
+    {
+        if (cfg_->optim.weight_obstacle==0 || weight_multiplier==0)// || obstacles_==nullptr )
+            return; // if weight equals zero skip adding edges!
+
+        bool inflated = cfg_->obstacles.inflation_dist > cfg_->obstacles.min_obstacle_dist;
+
+        Eigen::Matrix<double,1,1> information;
+        information.fill(cfg_->optim.weight_obstacle * weight_multiplier);
+
+        auto create_edge = [ &information, this] (int index, int next_index, const DIST_TO_OBSTACLE_FUNC& dist_func) {
+
+            EdgeObstacleGridMap* dist_obst = new EdgeObstacleGridMap;
+            dist_obst->setVertex(0,teb_.PoseVertex(index));
+            dist_obst->setVertex(1,teb_.PoseVertex(next_index));
+            dist_obst->setInformation(information);
+            dist_obst->setParameters(*cfg_, dist_func);
+            optimizer_->addEdge(dist_obst);
+
+        };
+
+        // iterate all teb points, skipping the last and, if the EdgeVelocityObstacleRatio edges should not be created, the first one too
+        const int first_vertex = cfg_->optim.weight_velocity_obstacle_ratio == 0 ? 1 : 0;
+        for (int i = 1; i < teb_.sizePoses() - 1; ++i)
+        {
+            create_edge(i, i + 1 , dist_func_);
         }
     }

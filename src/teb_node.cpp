@@ -478,7 +478,7 @@ int main(int argc, char * argv[]) {
             double dy = pruned_path.back().y() - robot_pose.pose.position.y;
             RCLCPP_INFO(rclcpp::get_logger("newNode"), "complete global path state %i", config.goal_tolerance.complete_global_plan);
             if(fabs(std::sqrt(dx*dx+dy*dy)) < config.goal_tolerance.xy_goal_tolerance
-              //&& fabs(delta_orient) < config.goal_tolerance.yaw_goal_tolerance
+              && fabs(delta_orient) < config.goal_tolerance.yaw_goal_tolerance
               //&& (!config.goal_tolerance.complete_global_plan || via_points.size() == 0)
               //&& (base_local_planner::stopped(base_odom, config.goal_tolerance.theta_stopped_vel, config.goal_tolerance.trans_stopped_vel) || config.goal_tolerance.free_goal_vel)
               )
@@ -506,7 +506,7 @@ int main(int argc, char * argv[]) {
                 pruned_path.push_back(temp);
                 std::reverse(pruned_path.begin(), pruned_path.end());
               }
-              auto pruned_path_discrete = pathDiscretize(pruned_path,.3);
+              auto pruned_path_discrete = pathDiscretize(pruned_path, .2);
               pruned_path_discrete.front().theta() = tf2::getYaw(robot_pose.pose.orientation);
               pruned_path_discrete.back().theta() = pruned_path.back().theta();
               teb_input_pub.publishTraj(pruned_path_discrete);

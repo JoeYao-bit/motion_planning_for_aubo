@@ -17,6 +17,7 @@ ThreadPool planning_thread;
 
 double current_time = 0;
 
+// demo path for test
 Pathd<2> error_path = {{-1.81, 0.53}, {-0.94, 0.51}, {0.26, -0.38}, {1.33, -0.31}};
 
 class GlobalPathPublisher : public rclcpp::Node
@@ -184,8 +185,8 @@ int main(int argc, char * argv[]) {
           if(planning_thread.pool_[0].joinable()) {
               planning_thread.Schedule([&] {
                   // publish global path to ros2
-                  global_path_pub.publishPath(error_path);
-                  //global_path_pub.publishPath(pathd);
+                  //global_path_pub.publishPath(error_path);
+                  global_path_pub.publishPath(pathd);
               });
           }
       } else if(key == 'f') {

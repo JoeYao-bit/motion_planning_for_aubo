@@ -344,7 +344,7 @@ private:
     RCLCPP_INFO(this->get_logger(), "receive occupancy grid map msg with size %i %i", map_msg.info.width, map_msg.info.height);
     map_converter.setWorldMap(map_msg);
     distance_map = std::make_shared<DistanceMapUpdater<2> >(is_occupied, map_converter.dim_);
-    RCLCPP_INFO(this->get_logger(), "finish set occupancy grid map");
+    RCLCPP_INFO(this->get_logger(), "finish set occupancy grid map"); // cost nearly one second
   }
 
   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr subscription_;
@@ -454,7 +454,7 @@ int main(int argc, char * argv[]) {
           }
           std::cout << " final yaw = " << tf2::getYaw(path_msg.poses.back().pose.orientation) << std::endl;
           auto pruned_path = global_path;
-          if(pruneGlobalPlan(robot_pose, pruned_path, config.trajectory.global_plan_prune_distance, config.trajectory.max_global_plan_lookahead_dist)) {
+          if(pruneGlobalPlan(robot_pose, pruned_path, .5, 1.5)) {
             // after prune
             std::cout << " after prune: ";
             for(const auto& gp : pruned_path) {

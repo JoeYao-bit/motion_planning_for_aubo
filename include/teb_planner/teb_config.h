@@ -190,8 +190,8 @@ public:
         // Trajectory
 
         trajectory.teb_autosize = true;
-        trajectory.dt_ref = 0.4;
-        trajectory.dt_hysteresis = 0.1;
+        trajectory.dt_ref = 0.5;
+        trajectory.dt_hysteresis = 0.05;
         trajectory.min_samples = 5;
         trajectory.max_samples = 500;
         trajectory.global_plan_overwrite_orientation = true;
@@ -225,8 +225,8 @@ public:
 
         // GoalTolerance
 
-        goal_tolerance.xy_goal_tolerance = 0.2;
-        goal_tolerance.yaw_goal_tolerance = 0.2;
+        goal_tolerance.xy_goal_tolerance = 0.15;
+        goal_tolerance.yaw_goal_tolerance = 0.15;
         goal_tolerance.free_goal_vel = false;
         goal_tolerance.trans_stopped_vel = 0.1;
         goal_tolerance.theta_stopped_vel = 0.1;
@@ -234,7 +234,7 @@ public:
 
         // Obstacles
 
-        obstacles.min_obstacle_dist = 0.1; // default = 0.5
+        obstacles.min_obstacle_dist = 0.3; // default = 0.5
         obstacles.inflation_dist = 0.6;
         obstacles.dynamic_obstacle_inflation_dist = 0.6;
         obstacles.include_dynamic_obstacles = true;
@@ -253,8 +253,8 @@ public:
 
         // Optimization
 
-        optim.no_inner_iterations = 10;
-        optim.no_outer_iterations = 10;
+        optim.no_inner_iterations = 5;
+        optim.no_outer_iterations = 4;
         optim.optimization_activate = true;
         optim.optimization_verbose = false;
         optim.penalty_epsilon = 0.1;
@@ -269,7 +269,7 @@ public:
         optim.weight_kinematics_turning_radius = 1;
         optim.weight_optimaltime = 1;
         optim.weight_shortest_path = 0;
-        optim.weight_obstacle = 50;
+        optim.weight_obstacle = 60;
         optim.weight_inflation = 0.1;
         optim.weight_dynamic_obstacle = 50;
         optim.weight_dynamic_obstacle_inflation = 0.1;

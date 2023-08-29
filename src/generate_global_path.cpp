@@ -158,8 +158,9 @@ int main(int argc, char * argv[]) {
     bool draw_dist_map = false;
     while(rclcpp::ok()) {
       count ++;
-      count = count % 20; // pub map per second
-      if(count == 0) {
+      // repeat publish cause merely one second delay in TEB node, considering only update the map partially
+      // pub map after the first 0.5 second
+      if(count == .5/control_frequency) {
         map_pub.publishMap(is_occupied, dimension);
       }
       canvas->resetCanvas();

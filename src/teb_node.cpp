@@ -298,6 +298,7 @@ class TEBInputPathPublisher : public rclcpp::Node
 };
 
 
+/* get current velocity, as input of TEB */ 
 class OdometrySubscriber : public rclcpp::Node
 {
 public:
@@ -410,6 +411,7 @@ DIST_TO_OBSTACLE_FUNC dist_func = [](const PoseSE2& pose, const PoseSE2& pose2) 
     return min_dist;// * (pass_occupied ? -1 : 1);
 };
 
+
 int main(int argc, char * argv[]) {
     rclcpp::init(argc, argv);
 
@@ -427,6 +429,11 @@ int main(int argc, char * argv[]) {
     // set the frequency to run TEB
     rclcpp::WallRate loop_rate(1/control_frequency);
 
+    // listen to global localization from tf tree
+    auto node = rclcpp::Node::make_shared("test");
+    tf2_ros::Buffer tf_buffer(node->get_clock());
+    tf2_ros::TransformListener tf_listener(tf_buffer, node);
+
     /* set robot shape */
     robot_shape = {{.1, .05}, {.1, -.05}, {-.05, -.05}, {-.05, .05}};
     robot_model = boost::make_shared<PolygonRobotFootprint>(robot_shape);
@@ -442,11 +449,26 @@ int main(int argc, char * argv[]) {
         vx = 0, vy = 0, w = 0;
         if(new_path) {
 
+
           geometry_msgs::msg::PoseStamped robot_pose;
-          robot_pose.header = odom_msg.header;
-          robot_pose.pose = odom_msg.pose.pose;
+          // robot_pose.header = odom_msg.header;
+          // robot_pose.pose = odom_msg.pose.pose;
+          try
+          {
+            auto lis_trans = tf_buffer.lookupTransform("map","base_link", tf2::TimePointZero);
+            robot_pose.pose.position.x = lis_trans.transform.translation.x;
+            robot_pose.pose.position.y = lis_trans.transform.translation.y;
+            robot_pose.pose.position.z = lis_trans.transform.translation.z;
+            robot_pose.pose.orientation = lis_trans.transform.rotation;
+          } catch(tf2::TransformException &ex) {
+              RCLCPP_WARN(node->get_logger(),"%s",ex.what());
+          }
+
           // std::vector<geometry_msgs::msg::PoseStamped> global_plan = path_msg.poses;
           std::cout << " robot pose: " << robot_pose.pose.position.x << ", " << robot_pose.pose.position.y << ", " << tf2::getYaw(robot_pose.pose.orientation) << std::endl;
+
+
+
           // before prune
           std::cout << " before prune: ";
           for(const auto& dgp : global_path) {

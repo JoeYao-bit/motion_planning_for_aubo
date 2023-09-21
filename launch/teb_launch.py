@@ -1,7 +1,7 @@
 from launch import LaunchDescription
 import launch_ros.actions
 
-global_path_topic = '/global_path12'
+new_global_path_topic = '/global_path'
 
 # from src to dest
 # need colbuild to update remapping !!
@@ -18,20 +18,20 @@ def generate_launch_description():
             package='teb_planner', 
             executable='generate_global_path', 
             output='screen',
-            remappings=[('/global_path', global_path_topic)]
+            remappings=[('/global_path', new_global_path_topic)]
             ),
         launch_ros.actions.Node(
             namespace= "teb_planner", 
             package='teb_planner', 
             executable='fake_robot_node', 
             output='screen',
-            remappings=[('/global_path', global_path_topic)]
+            remappings=[('/global_path', new_global_path_topic)]
             ),
         launch_ros.actions.Node(
             namespace= "teb_planner", 
             package='teb_planner', 
             executable='teb_node', 
             output='screen',
-            remappings=[("/global_path", global_path_topic)]
+            remappings=[("/global_path", new_global_path_topic)]
             )
     ])

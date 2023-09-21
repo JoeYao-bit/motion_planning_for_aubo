@@ -131,19 +131,29 @@ class OdomPublisher : public rclcpp::Node
       quat.setRPY(0, 0, yaw);
       geometry_msgs::msg::Quaternion odom_quat = tf2::toMsg(quat);//tf2_ros::createQuaternionMsgFromRollPitchYaw(1.581071,0,yaw);
 
-      //first, we'll publish the transform over tf
+      //first, we'll publish the transform from odom to map
       geometry_msgs::msg::TransformStamped odom_trans;
       odom_trans.header.stamp = current_time;
-      odom_trans.header.frame_id = "/odom";
-      odom_trans.child_frame_id = "/base_link";
-
-      odom_trans.transform.translation.x = x;
-      odom_trans.transform.translation.y = y;
-      odom_trans.transform.translation.z = 0.0;
-      odom_trans.transform.rotation = odom_quat;
+      odom_trans.header.frame_id = "/map";
+      odom_trans.child_frame_id = "/odom";
 
       //send the transform
       odom_broadcaster_->sendTransform(odom_trans);
+
+
+      //second, we'll publish the transform from base_link to odom
+      geometry_msgs::msg::TransformStamped odom_trans2;
+      odom_trans2.header.stamp = current_time;
+      odom_trans2.header.frame_id = "/odom";
+      odom_trans2.child_frame_id = "/base_link";
+
+      odom_trans2.transform.translation.x = x;
+      odom_trans2.transform.translation.y = y;
+      odom_trans2.transform.translation.z = 0.0;
+      odom_trans2.transform.rotation = odom_quat;
+
+      //send the transform
+      odom_broadcaster_->sendTransform(odom_trans2);
 
       //next, we'll publish the odometry message over ROS
       nav_msgs::msg::Odometry odom;

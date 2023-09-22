@@ -467,7 +467,14 @@ int main(int argc, char * argv[]) {
             robot_pose.pose.position.x = lis_trans.transform.translation.x;
             robot_pose.pose.position.y = lis_trans.transform.translation.y;
             robot_pose.pose.position.z = lis_trans.transform.translation.z;
-            robot_pose.pose.orientation = lis_trans.transform.rotation;
+            if(path_msg.forward_flag) {
+              robot_pose.pose.orientation = lis_trans.transform.rotation;
+            } else {
+              auto yaw = tf2::getYaw(lis_trans.transform.rotation) + M_PI;
+              yaw = g2o::normalize_theta(yaw);
+              tf2::Quaternion quat_reversed; quat_reversed.setRPY(0, 0, yaw);
+              robot_pose.pose.orientation = tf2::toMsg(quat_reversed);
+            }
           } catch(tf2::TransformException &ex) {
               RCLCPP_WARN(node->get_logger(),"%s",ex.what());
           }
@@ -523,7 +530,6 @@ int main(int argc, char * argv[]) {
               double c_vx = odom_msg.twist.twist.linear.x, c_vy = odom_msg.twist.twist.linear.y, c_w = odom_msg.twist.twist.angular.z;
               teb_planner.setVelocityStart(Eigen::Vector3d(c_vx, c_vy, c_w));
               teb_planner.setVelocityGoal(Eigen::Vector3d(0, 0, 0));
-              teb_planner;
               if(pruned_path.size() >= 2) {
                 pruned_path.front().x() = robot_pose.pose.position.x;
                 pruned_path.front().y() = robot_pose.pose.position.y;
@@ -557,6 +563,11 @@ int main(int argc, char * argv[]) {
               
               teb_planner.initialize(config, dist_func, robot_model, &via_points);
               first_new_path = false;
+              c_vy = 0;
+              // if is move backward
+              if(!path_msg.forward_flag) {
+                c_vx = -c_vx; 
+              }
               
               //std::cout << "-- teb initialized " << std::endl;
               if(teb_planner.plan(pruned_path_discrete, Eigen::Vector3d(c_vx, c_vy, c_w), false)) {
@@ -565,10 +576,23 @@ int main(int argc, char * argv[]) {
                   teb_planner.getVelocityCommand(vx, vy, w, 1);
                   teb_traj_pub.publishTraj(result_traj);
                   //std::cout << "velocity command = " << vx << ", " << vy << ", " << w << std::endl;
-                  RCLCPP_INFO(rclcpp::get_logger("newNode"), "-- velocity command (vx, vy, w) = %f %f %f", vx, vy, w);
+                  RCLCPP_INFO(rclcpp::get_logger("newNode"), "-- before limit velocity command (vx, vy, w) = %f %f %f", vx, vy, w);
+                  vx = std::max(vx, (double)path_msg.vel_min);
+                  vx = std::min(vx, (double)path_msg.vel_max);
+                  vy = 0;
+                  if(w < 0) {
+                    w  = std::min(w, -(double)path_msg.angular_min);
+                    w  = std::max(w, -(double)path_msg.angular_max);
+                  } else {
+                    w  = std::max(w, (double)path_msg.angular_min);
+                    w  = std::min(w, (double)path_msg.angular_max);
+                  }
+                  RCLCPP_INFO(rclcpp::get_logger("newNode"), "-- after limit velocity command (vx, vy, w) = %f %f %f", vx, vy, w);
+                  if(!path_msg.forward_flag) {
+                    vx = -vx; 
+                  }
                   teb_planner.clearPlanner();
                   cmd_vel_pub.publishCmdVel(vx, vy, w);
-                  // TODO：visualize teb's path during planning， add look ahead dist
               } else {
                   RCLCPP_INFO(rclcpp::get_logger("newNode"), "-- teb failed");
                   teb_planner.clearPlanner();

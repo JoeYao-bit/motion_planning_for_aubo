@@ -106,6 +106,8 @@ class OdomPublisher : public rclcpp::Node
       double y = current_pose.position.y + control_frequency*(cmd_vel.linear.x + pre_cmd_vel.linear.x ) * sin(tf2::getYaw(current_pose.orientation)) / 2.;
       double yaw = tf2::getYaw(current_pose.orientation) + control_frequency*(cmd_vel.angular.z + pre_cmd_vel.angular.z) / 2.;
 
+      yaw = g2o::normalize_theta(yaw);
+
       std::cout << " pre yaw = " << tf2::getYaw(current_pose.orientation) << " / after yaw = " << yaw <<  std::endl;
 
       std::cout << "FakeRobot cmd_vel " << cmd_vel.linear.x << ", " << cmd_vel.angular.z << " / pre_cmd_vel " << pre_cmd_vel.linear.x << ", " << pre_cmd_vel.angular.z << std::endl; 

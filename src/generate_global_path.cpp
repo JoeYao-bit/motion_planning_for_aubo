@@ -42,12 +42,13 @@ class GlobalPathPublisher : public rclcpp::Node
 
       message.header.stamp = this->get_clock()->now();
       message.header.frame_id = "/map";
-      message.forward_flag = true;
 
-      message.vel_max = 0.6;
+      message.forward_flag = false;
+
+      message.vel_max = 0.5;
       message.vel_min = 0.0;
       
-      message.angular_max = 1.0;
+      message.angular_max = 0.6;
       message.angular_min = 0.0;
 
       message.acc_theta_max = 1.0;

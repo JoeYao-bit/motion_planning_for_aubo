@@ -20,13 +20,15 @@ double current_time = 0;
 // demo path for test
 Pathd<2> error_path = {{-1.81, 0.53}, {-0.94, 0.51}, {0.26, -0.38}, {1.33, -0.31}};
 
+agv_path_msgs::msg::AgvPath agv_path;
+
 class GlobalPathPublisher : public rclcpp::Node
 {
   public:
     GlobalPathPublisher()
     : Node("GlobalPathPublisher")
     {
-      publisher_ = this->create_publisher<nav_msgs::msg::Path>("/global_path", 10);
+      publisher_ = this->create_publisher<agv_path_msgs::msg::AgvPath>("/global_path", 10);
     }
 
  
@@ -36,17 +38,27 @@ class GlobalPathPublisher : public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "Global path size %i way points, < 2, do not publish ", path.size());
         return;
       }
-      auto message = nav_msgs::msg::Path();
+      auto message = agv_path_msgs::msg::AgvPath();
 
       message.header.stamp = this->get_clock()->now();
       message.header.frame_id = "/map";
+      message.forward_flag = true;
+
+      message.vel_max = 0.6;
+      message.vel_min = 0.0;
+      
+      message.angular_max = 1.0;
+      message.angular_min = 0.0;
+
+      message.acc_theta_max = 1.0;
+      message.acc_vel_max = 1.0;
 
       for(const auto& pt : path) {
-        geometry_msgs::msg::PoseStamped pose;
-        pose.header.stamp = this->get_clock()->now();
-        pose.header.frame_id = "/map";
-        pose.pose.position.x = pt[0];
-        pose.pose.position.y = pt[1];
+        geometry_msgs::msg::Pose pose;
+        //pose.header.stamp = this->get_clock()->now();
+        //pose.header.frame_id = "/map";
+        pose.position.x = pt[0];
+        pose.position.y = pt[1];
         message.poses.push_back(pose);
       }
       RCLCPP_INFO(this->get_logger(), "Publis global path with %i way points", path.size());
@@ -57,7 +69,7 @@ class GlobalPathPublisher : public rclcpp::Node
 
   private:
 
-    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr publisher_;
+    rclcpp::Publisher<agv_path_msgs::msg::AgvPath>::SharedPtr publisher_;
 
 };
 class GridMapPublisher : public rclcpp::Node

@@ -9,7 +9,7 @@ bool first_new_path = false;
 
 nav_msgs::msg::Odometry odom_msg;
 nav_msgs::msg::OccupancyGrid map_msg;
-nav_msgs::msg::Path path_msg;
+agv_path_msgs::msg::AgvPath path_msg;
 std::vector<PoseSE2> global_path;
 
 TebOptimalPlanner teb_planner;
@@ -42,14 +42,14 @@ class TEBSubscriber : public rclcpp::Node
 public:
   TEBSubscriber() : Node("teb_subscriber")
   {
-    subscription_ = this->create_subscription<nav_msgs::msg::Path>("/global_path", 10, std::bind(&TEBSubscriber::topic_callback, this, _1));
+    subscription_ = this->create_subscription<agv_path_msgs::msg::AgvPath>("/global_path", 10, std::bind(&TEBSubscriber::topic_callback, this, _1));
 
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
   }
 
 private:
 
-  void topic_callback(const nav_msgs::msg::Path::SharedPtr msg) const
+  void topic_callback(const agv_path_msgs::msg::AgvPath::SharedPtr msg) const
   {
     RCLCPP_INFO(this->get_logger(), "Receive global path with %u way points", msg->poses.size());
     path_msg = *msg;
@@ -59,12 +59,20 @@ private:
     via_points.clear();
     for(const auto& way_point : path_msg.poses) {
       PoseSE2 pt;
-      pt.x() = way_point.pose.position.x;
-      pt.y() = way_point.pose.position.y;
-      pt.theta() = tf2::getYaw(way_point.pose.orientation);
+      pt.x() = way_point.position.x;
+      pt.y() = way_point.position.y;
+      pt.theta() = tf2::getYaw(way_point.orientation);
       global_path.push_back(pt);
       via_points.push_back(pt.position());
     }
+
+    std::cout << "receive TebPathConfig: is forward " << msg->forward_flag << " / "
+              << "vel_max " << msg->vel_max << " / "
+              << "vel_min " << msg->vel_min << " / "
+              << "angular_max " << msg->angular_max << " / "
+              << "angular_min " << msg->angular_min << " / "
+              << "acc_theta_max " << msg->acc_theta_max << " / "
+              << "acc_vel_max " << msg->acc_vel_max << "  " << std::endl;
 
     //auto discrete_global_path = pathDiscretize(global_path, 1.);
     // set final orientation
@@ -74,7 +82,7 @@ private:
   }
 
 
-  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr subscription_;
+  rclcpp::Subscription<agv_path_msgs::msg::AgvPath>::SharedPtr subscription_;
 
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   
@@ -474,7 +482,7 @@ int main(int argc, char * argv[]) {
           for(const auto& dgp : global_path) {
             std::cout << "(" << dgp.x() << ", " << dgp.y() << ")->";
           }
-          std::cout << " final yaw = " << tf2::getYaw(path_msg.poses.back().pose.orientation) << std::endl;
+          std::cout << " final yaw = " << tf2::getYaw(path_msg.poses.back().orientation) << std::endl;
           auto pruned_path = global_path;
           if(pruneGlobalPlan(robot_pose, pruned_path, .5, 1.5)) {
             // after prune
@@ -515,6 +523,7 @@ int main(int argc, char * argv[]) {
               double c_vx = odom_msg.twist.twist.linear.x, c_vy = odom_msg.twist.twist.linear.y, c_w = odom_msg.twist.twist.angular.z;
               teb_planner.setVelocityStart(Eigen::Vector3d(c_vx, c_vy, c_w));
               teb_planner.setVelocityGoal(Eigen::Vector3d(0, 0, 0));
+              teb_planner;
               if(pruned_path.size() >= 2) {
                 pruned_path.front().x() = robot_pose.pose.position.x;
                 pruned_path.front().y() = robot_pose.pose.position.y;
@@ -533,16 +542,22 @@ int main(int argc, char * argv[]) {
               pruned_path_discrete.back().theta() = pruned_path.back().theta();
               teb_input_pub.publishTraj(pruned_path_discrete);
 
-              //if(first_new_path) 
-              {
-                via_points.clear();
-                for(const auto& ppd  : pruned_path_discrete) {
-                  via_points.push_back(ppd.position());
-                }
-                teb_planner.initialize(config, dist_func, robot_model, &via_points);
-                first_new_path = false;
+              via_points.clear();
+              for(const auto& ppd  : pruned_path_discrete) {
+                via_points.push_back(ppd.position());
               }
+              
+              config.robot.max_vel_x = path_msg.vel_max;
+              config.robot.max_vel_x_backwards = 0; // forward or backward is limited
 
+              config.robot.max_vel_theta = path_msg.angular_max;
+
+              config.robot.acc_lim_x = path_msg.acc_vel_max;
+              config.robot.acc_lim_theta = path_msg.acc_theta_max;
+              
+              teb_planner.initialize(config, dist_func, robot_model, &via_points);
+              first_new_path = false;
+              
               //std::cout << "-- teb initialized " << std::endl;
               if(teb_planner.plan(pruned_path_discrete, Eigen::Vector3d(c_vx, c_vy, c_w), false)) {
                   //std::cout << "-- teb success" << std::endl;

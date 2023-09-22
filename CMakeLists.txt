@@ -35,6 +35,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(tf2_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(agv_path_msgs REQUIRED)
 
 set(dependencies
     rclcpp
@@ -53,6 +54,10 @@ include_directories(include
                     ${GLOG_INCLUDE_DIRS}
                     gtest
                     include/teb_planner
+                    ${agv_path_msgs_INCLUDE_DIRS} # path of new msg
+                    #${workspaceFolder}/install/agv_path_msgs/include
+                    #/home/yaozhuo/code/ros2_ws/install/agv_path_msgs/include
+                    #
                     )
 
 set(teb_lib 
@@ -99,17 +104,17 @@ set(G2O_LIBS
 
 add_executable(generate_global_path src/generate_global_path.cpp)
 target_link_libraries(generate_global_path ${EXTERNAL_LIBS} ${G2O_LIBS})
-ament_target_dependencies(generate_global_path geometry_msgs nav_msgs rclcpp std_msgs tf2_msgs tf2_ros)
+ament_target_dependencies(generate_global_path geometry_msgs nav_msgs rclcpp std_msgs tf2_msgs tf2_ros agv_path_msgs)
 target_sources(generate_global_path PUBLIC ${teb_lib})
 
 add_executable(fake_robot_node src/fake_robot_node.cpp)
 target_link_libraries(fake_robot_node ${EXTERNAL_LIBS} ${G2O_LIBS})
-ament_target_dependencies(fake_robot_node geometry_msgs nav_msgs rclcpp std_msgs tf2_msgs tf2_ros)
+ament_target_dependencies(fake_robot_node geometry_msgs nav_msgs rclcpp std_msgs tf2_msgs tf2_ros agv_path_msgs)
 target_sources(fake_robot_node PUBLIC ${teb_lib})
 
 add_executable(teb_node src/teb_node.cpp)
 target_link_libraries(teb_node ${EXTERNAL_LIBS} ${G2O_LIBS})
-ament_target_dependencies(teb_node geometry_msgs nav_msgs rclcpp std_msgs tf2_msgs tf2_ros tf2_geometry_msgs)
+ament_target_dependencies(teb_node geometry_msgs nav_msgs rclcpp std_msgs tf2_msgs tf2_ros tf2_geometry_msgs agv_path_msgs)
 target_sources(teb_node PUBLIC ${teb_lib})
 
 add_executable(publisher src/publisher_node.cpp)

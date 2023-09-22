@@ -32,6 +32,9 @@
 #include "nav_msgs/msg/path.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
 
+#include "agv_path_msgs/msg/agv_path.hpp"
+
+
 using namespace freeNav;
 
 const double control_frequency = .1;

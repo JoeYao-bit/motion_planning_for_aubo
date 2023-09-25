@@ -36,7 +36,7 @@ def generate_launch_description():
             remappings=[("/global_path", new_global_path_topic)],
                         parameters=[
                 {"local_expand_pixel": 20}, # local dist map expand from the bounding box of local path 
-                {"path_forward_length": 1.4}, # only use partial path to compute velocity command
+                {"path_forward_length": 1.5}, # only use partial path to compute velocity command
                 {"max_dist_to_path": 0.5} # if current pose if far to global path, stop TEB
             ]
             )

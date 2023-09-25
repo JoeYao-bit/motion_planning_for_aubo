@@ -43,7 +43,7 @@ class GlobalPathPublisher : public rclcpp::Node
       message.header.stamp = this->get_clock()->now();
       message.header.frame_id = "/map";
 
-      message.forward_flag = false;
+      message.forward_flag = true;
 
       message.vel_max = 0.5;
       message.vel_min = 0.0;
@@ -56,8 +56,6 @@ class GlobalPathPublisher : public rclcpp::Node
 
       for(const auto& pt : path) {
         geometry_msgs::msg::Pose pose;
-        //pose.header.stamp = this->get_clock()->now();
-        //pose.header.frame_id = "/map";
         pose.position.x = pt[0];
         pose.position.y = pt[1];
         message.poses.push_back(pose);

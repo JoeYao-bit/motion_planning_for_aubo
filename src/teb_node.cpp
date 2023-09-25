@@ -24,9 +24,11 @@ std::vector<double> time_diffs; // time diff between poses
 
 Point2dContainer robot_shape;
 
-DistanceMapUpdaterPtr<2> distance_map;
+DistanceMapUpdaterPtr<2> local_distance_map;
 
 MapConverter map_converter;
+
+const std::string node_name = "teb_node";
 
 auto is_occupied = [](const Pointi<2> & pt) -> bool { 
   if(isOutOfBoundary(pt, map_converter.dim_)) { return true; }
@@ -305,6 +307,34 @@ class TEBInputPathPublisher : public rclcpp::Node
 
 };
 
+using namespace std::chrono_literals;
+
+class ParametersClass: public rclcpp::Node
+{
+  public:
+    ParametersClass()
+      : Node("parameter_class")
+    {
+      this->declare_parameter<double>("path_forward_length", 1.5);
+      this->declare_parameter<int>("local_expand_pixel", 20);
+      this->declare_parameter<double>("max_dist_to_path", 0.5);
+
+      this->get_parameter("path_forward_length", path_forward_length_);
+      this->get_parameter("local_expand_pixel", local_expand_pixel_);
+      this->get_parameter("max_dist_to_path", max_dist_to_path_);
+
+
+      RCLCPP_INFO(this->get_logger(), "path_forward_length = %f / local_expand_pixel = %i / max_dist_to_path = %f",
+                                       path_forward_length_,
+                                       local_expand_pixel_,
+                                       max_dist_to_path_);
+
+    }
+    double max_dist_to_path_;
+    double path_forward_length_; // only considering local path, rather than whole global path 
+    int local_expand_pixel_; // local distance map expand outward
+};
+
 
 /* get current velocity, as input of TEB */ 
 class OdometrySubscriber : public rclcpp::Node
@@ -352,7 +382,6 @@ private:
     // update map
     RCLCPP_INFO(this->get_logger(), "receive occupancy grid map msg with size %i %i", map_msg.info.width, map_msg.info.height);
     map_converter.setWorldMap(map_msg);
-    distance_map = std::make_shared<DistanceMapUpdater<2> >(is_occupied, map_converter.dim_);
     RCLCPP_INFO(this->get_logger(), "finish set occupancy grid map"); // cost nearly one second
   }
 
@@ -360,56 +389,60 @@ private:
 
 };
 
-DIST_TO_OBSTACLE_FUNC dist_func = [](const PoseSE2& pose, const PoseSE2& pose2) -> double {
+/* start local distance map data */
 
+DimensionLength* local_map_dimen = new DimensionLength [2];
+Pointi<2> dist_map_offset;
+
+// construct local occupied function
+auto is_occupied_local = [](const Pointi<2> & pt) -> bool {
+    // considering the boundary of current local map as occupied
+    if(isOutOfBoundary(pt, local_map_dimen)) { return true; }
+    return is_occupied(pt + dist_map_offset);
+};
+
+// only considering the center of polygon, cost fewer computation but less accuracy
+DIST_TO_OBSTACLE_FUNC local_dist_func_center = [](const PoseSE2& pose, const PoseSE2& pose2) -> double {
     Pointd<2> ptd1({pose.x(), pose.y()}), ptd2({pose2.x(), pose2.y()});
-    Pointi<2> pti1 = map_converter.transformToPixel(ptd1), pti2 = map_converter.transformToPixel(ptd2), closest_pt;
+    Pointi<2> pti1 = map_converter.transformToPixel(ptd1) - dist_map_offset,
+              pti2 = map_converter.transformToPixel(ptd2) - dist_map_offset,
+              closest_pt;
+    // if at least one end of the edge is out of map
+    if(isOutOfBoundary(pti1, local_map_dimen) || isOutOfBoundary(pti2, local_map_dimen)) {
+        return 0;
+    }
+    //std::cout << " pti1 " << pti1 << " / pti2 "  << pti2 << std::endl;
     PathLen min_dist = MAX<PathLen>;
     bool pass_occupied = false;
     if(pti1 != pti2) {
-        //std::cout << " line pt " << pti1 << " / " << pti2 << std::endl;
         Line<2> line(pti1, pti2);
         for (int i = 0; i < line.step; i++) {
             Pointi<2> temp_pt = line.GetPoint(i);
             pass_occupied = false;
-            if(is_occupied(temp_pt)) {
-                //std::cout << " current polygon is occupied" << std::endl;
+            if(is_occupied_local(temp_pt)) {
                 pass_occupied = true;
             }
             PathLen dist;
-            if (distance_map->getClosestDistance(temp_pt, dist, closest_pt)) {
-                Pointd<2> ptd = map_converter.transformToWorld(closest_pt);
-                // get point to line distance, in metric distance to allow sightly offset in global pose will cause offset in
-                //std::cout << " ptd, ptd1, ptd2 " << ptd << ptd1 << ptd2 << std::endl;
+            if (local_distance_map->getClosestDistance(temp_pt, dist, closest_pt)) {
+                Pointd<2> ptd = map_converter.transformToWorld(closest_pt + dist_map_offset);
                 PathLen temp_dist = pointDistToLine(ptd, ptd1, ptd2) * (pass_occupied ? -1 : 1);
-                //std::cout << " temp dist " << temp_dist << std::endl;
-                //closest_ptds.push_back(ptd);
-                // update minimal dist
                 if (temp_dist < min_dist) { min_dist = temp_dist; }
             } else {
                 std::cout << " out of boundary " << std::endl;
                 return 0;
             }
         }
-    } else
-        {
+    } else {
         // project into one grid
         Pointi<2> temp_pt = pti1;
         pass_occupied = false;
-        if(is_occupied(temp_pt)) {
-            //std::cout << " current polygon is occupied" << std::endl;
+        if(is_occupied_local(temp_pt)) {
             pass_occupied = true;
         }
-        //std::cout << " single pt " << pti1 << std::endl;
         PathLen dist;
-        if (distance_map->getClosestDistance(temp_pt, dist, closest_pt)) {
-            Pointd<2> ptd = map_converter.transformToWorld(closest_pt);
-            // get point to line distance, in metric distance to allow sightly offset in global pose will cause offset in
-            //std::cout << " ptd, ptd1, ptd2 " << ptd << ptd1 << ptd2 << std::endl;
+        if (local_distance_map->getClosestDistance(temp_pt, dist, closest_pt)) {
+            Pointd<2> ptd = map_converter.transformToWorld(closest_pt + dist_map_offset);
             PathLen temp_dist = pointDistToLine(ptd, ptd1, ptd2) * (pass_occupied ? -1 : 1);
-            //std::cout << " temp dist " << temp_dist << std::endl;
-            //closest_ptds.push_back(ptd);
-            // update minimal dist
             if (temp_dist < min_dist) { min_dist = temp_dist; }
         } else {
             std::cout << " out of boundary " << std::endl;
@@ -419,6 +452,7 @@ DIST_TO_OBSTACLE_FUNC dist_func = [](const PoseSE2& pose, const PoseSE2& pose2) 
     return min_dist;// * (pass_occupied ? -1 : 1);
 };
 
+/* end local distance map data */
 
 int main(int argc, char * argv[]) {
     rclcpp::init(argc, argv);
@@ -429,7 +463,11 @@ int main(int argc, char * argv[]) {
     // subscribe odometry 
     auto odometry_sub = std::make_shared<OdometrySubscriber>();
 
+    // subscribe global grid map 
     auto grid_map_sub = std::make_shared<GridMapSubscriber>();
+
+    // get parameter 
+    ParametersClass param;
 
     // publish cmd vel 
     CmdVelPublisher cmd_vel_pub;
@@ -491,7 +529,7 @@ int main(int argc, char * argv[]) {
           }
           std::cout << " final yaw = " << tf2::getYaw(path_msg.poses.back().orientation) << std::endl;
           auto pruned_path = global_path;
-          if(pruneGlobalPlan(robot_pose, pruned_path, .5, 1.5)) {
+          if(pruneGlobalPlan(robot_pose, pruned_path, param.max_dist_to_path_, param.path_forward_length_)) {
             // after prune
             std::cout << " after prune: ";
             for(const auto& gp : pruned_path) {
@@ -549,10 +587,12 @@ int main(int argc, char * argv[]) {
               teb_input_pub.publishTraj(pruned_path_discrete);
 
               via_points.clear();
+              Path<int, 2> global_pathi;
               for(const auto& ppd  : pruned_path_discrete) {
                 via_points.push_back(ppd.position());
+                Pointd<2> ptd_temp({(double)ppd.position().x(), (double)ppd.position().y()});
+                global_pathi.push_back(map_converter.transformToPixel(ptd_temp));
               }
-              
               config.robot.max_vel_x = path_msg.vel_max;
               config.robot.max_vel_x_backwards = 0; // forward or backward is limited
 
@@ -560,8 +600,19 @@ int main(int argc, char * argv[]) {
 
               config.robot.acc_lim_x = path_msg.acc_vel_max;
               config.robot.acc_lim_theta = path_msg.acc_theta_max;
-              
-              teb_planner.initialize(config, dist_func, robot_model, &via_points);
+
+              /* start update local distance map */
+              auto path_bound = getBoundingBoxOfPath(global_pathi);
+              //std::cout << " path bound " << path_bound.first << " / " << path_bound.second << std::endl;
+              // update local dist map's dimension length and offset, and expand outward 20 pixel/grid 
+              updateLocalMapDimen<2>(local_map_dimen, map_converter.dim_, path_bound, param.local_expand_pixel_, dist_map_offset);
+              //std::cout << " local dimen: (" << local_map_dimen[0] << ", " << local_map_dimen[1] << "), offset: " << dist_map_offset << std::endl;
+
+              local_distance_map = std::make_shared<DistanceMapUpdater<2> >(is_occupied_local, local_map_dimen);
+
+              /* end update local distance map*/
+
+              teb_planner.initialize(config, local_dist_func_center, robot_model, &via_points);
               first_new_path = false;
               c_vy = 0;
               // if is move backward
